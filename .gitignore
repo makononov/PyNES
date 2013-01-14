@@ -2,3 +2,5 @@ bin
 include
 lib
 .Python
+*.pyc
+build
