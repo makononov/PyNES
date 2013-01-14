@@ -2,7 +2,9 @@ class Cpu:
   memory_size = 0x10000
 
   def __init__(self):
-    self._memory = [0] * Cpu.memory_size
+    self._memory = [0xff] * Cpu.memory_size
+    self.registers = {'pc': 0x34, 'sp': 0, 'a': 0, 'x': 0, 'y': 0, 's': 0}
+    self._stack = []
 
   def mem_write(self, address, value):
     if (address >= Cpu.memory_size):

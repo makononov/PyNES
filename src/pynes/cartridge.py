@@ -41,5 +41,3 @@ class Cartridge:
     self._mapper = self._flags6 >> 4
     if header[11:15] is b"\x00\x00\x00\x00":
       self._mapper = self._mapper + ((self._flags7 >> 4) << 4)
-      
-      
