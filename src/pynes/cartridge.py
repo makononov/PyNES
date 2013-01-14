@@ -41,3 +41,7 @@ class Cartridge:
     self._mapper = self._flags6 >> 4
     if header[11:15] is b"\x00\x00\x00\x00":
       self._mapper = self._mapper + ((self._flags7 >> 4) << 4)
+
+  def read_prg(self, pc, bytes):
+    return self._prg_rom[pc:pc+bytes]
+
