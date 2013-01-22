@@ -1,5 +1,9 @@
 import pygame
 from pygame.locals import *
+from cpu import Cpu
+from cartridge import Cartridge
+import logging, sys
+
 
 class Pynes:
   def __init__(self):
@@ -11,13 +15,16 @@ class Pynes:
     pygame.init()
     self._display_surf = pygame.display.set_mode(self.size, pygame.HWSURFACE | pygame.DOUBLEBUF)
     self._running = True
+    self.cartridge = Cartridge("../../test/ff.nes")
+    self.cpu = Cpu(self.cartridge)
+    self.cpu.power_on()
 
   def on_event(self, event):
     if event.type == pygame.QUIT:
       self._running = False
   
   def on_loop(self):
-    pass
+    self.cpu.tick() 
 
   def on_render(self):
     pass
@@ -37,5 +44,8 @@ class Pynes:
     self.on_cleanup()
 
 if __name__ == "__main__":
+  logging.basicConfig(stream = sys.stderr)
+  log = logging.getLogger('PyNES')
+  log.setLevel(logging.DEBUG)
   theApp = Pynes()
   theApp.on_execute()
