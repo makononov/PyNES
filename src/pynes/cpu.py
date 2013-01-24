@@ -1,6 +1,8 @@
 from utils import Enumerate
 import numpy
 import logging
+from ppu import Ppu
+from register import Register
 
 addressing = Enumerate("NONE IMMEDIATE ZEROPAGE ZEROPAGE_X ZEROPAGE_Y ABSOLUTE ABSOLUTE_X ABSOLUTE_Y INDIRECT INDIRECT_X INDIRECT_Y RELATIVE ACCUMULATOR")
 log = logging.getLogger('PyNES')
@@ -13,28 +15,46 @@ class Instruction(object):
     self.cycles = cycles
 
   def execute(self, cpu, param):
+    # log.debug("Executing {0}({1:#2x}) at PC {2:#4x}".format(self.desc, self.opcode, cpu.registers['pc'].value()))
     if (self.desc == "ADC"):
-      if (cpu.status['decimal']):
-        raise Exception('ADC with BCD not yet implemented.')
+      carry = int(cpu.status['carry'])
 
       # Add value to accumulator with carry.
-      carry = int(cpu.status['carry'])
-      tempsum = cpu.get_value(self.addressing, param) + cpu.registers['a'].value() + carry
-
-      if tempsum > 0xff:
-        # Carry the 1
-        tempsum -= 0x100
-        cpu.status['carry'] = True
+      src = cpu.get_value(self.addressing, param)
+      tempsum = src + cpu.registers['a'].value() + carry
+      set_zero(tempsum & 0xff)
+      if (cpu.status['decimal']):
+        if (cpu.registers['a'].value() & 0xf) + (src & 0xf) + carry > 9:
+          tempsum += 6
+        if tempsum > 0x99:
+          tempsum += 96
+        cpu.status['carry'] = (tempsum > 0x99)
       else:
-        # Clear any carry
-        cpu.status['carry'] = False
+        cpu.status['carry'] = (tempsum > 0xff)
 
       cpu.registers['a'].set(tempsum)
+      cpu.set_zero(tempsum)
+      cpu.set_negative(tempsum)
+      cpu.status['overflow'] = (tempsum != cpu.registers['a'].value())
         
     elif (self.desc == "AND"):
       val = cpu.get_value(self.addressing, param)
       val &= cpu.registers['a'].value()
       cpu.registers['a'].set(val)
+
+    elif (self.desc == "BIT"):
+      src = cpu.get_value(self.addressing, param)
+      cpu.set_negative(src)
+      cpu.status['overflow'] = (src & 0x40)
+      cpu.set_zero(src & cpu.registers['a'].value())
+
+    elif (self.desc == "BPL"):
+      offset = numpy.int8(param)
+      pc = cpu.registers['pc'].value()
+      # Add an extra CPU cycle if going across pages.
+      if (pc & 0xff00) != (pc + offset & 0xff00):
+        cpu.busy_cycles += 1
+      cpu.registers['pc'] += offset
     
     elif (self.desc == "CLD"):
       cpu.status['decimal'] = False
@@ -90,36 +110,6 @@ class Instruction(object):
         return "{0}({1:#3x}) +/-127".format(self.desc, self.opcode)
       if self.addressing == addressing.ACCUMULATOR:
         return "{0}({1:#3x})".format(self.desc, self.opcode)
-
-class Register(object):
-  def __init__(self, cpu, dtype = numpy.int8, ignore_overflow = False):
-    self._value = 0
-    self._cpu = cpu
-    self._dt = dtype
-    self._ignore_overflow = ignore_overflow
-  
-  def set(self, value):
-    self._value = self._dt(value)
-    if not self._ignore_overflow and self._value != value:
-      self._cpu.status['overflow'] = True
-    if not self._ignore_overflow and self._value == 0:
-      self._cpu.status['zero'] = True
-    if self._value < 0:
-      self._cpu.status['negative'] = True
-
-  def value(self):
-    return self._value
-
-  def __add__(self, val):
-    return self._value + val
-
-  def __iadd__(self, val):
-    self._value = self._dt(self._value + val)
-    return self
-
-  def __isub__(self, val):
-    return self.__iadd__(-1 * val)
-
 
 class Cpu(object):
   instruction_set = {
@@ -283,10 +273,12 @@ class Cpu(object):
     0xfe: Instruction(0xfe, "INC", addressing.ABSOLUTE_X, 7)
   }
 
-  def __init__(self, cartridge = None):
+  def __init__(self, ppu, cartridge = None):
     log.debug("Initializing CPU")
     self.cartridge = cartridge 
     self.busy_cycles = 0
+
+    self._ppu = ppu
 
     self._memory = {}
     self._memory['RAM'] = [0xff] * 0x800 # 0x0000 - 0x07ff
@@ -294,7 +286,7 @@ class Cpu(object):
     self._memory['SRAM'] = [0xff] * 0x2000 # 0x6000 - 0x7fff
     self._memory['PRG_ROM'] = [[], []] # 0x8000 - 0xbfff, 0xc000 - 0xffff, uninitialized since it is filled by the cartridge.
 
-    self.registers = {'pc': Register(self, numpy.uint16), 'a': Register(self), 'x': Register(self), 'y': Register(self), 'sp': Register(self, numpy.uint8, True)}
+    self.registers = {'pc': Register(numpy.uint16), 'a': Register(), 'x': Register(), 'y': Register(), 'sp': Register(numpy.uint8)}
     self.status = {'carry': False, 'zero': False, 'irqdis': True, 'decimal': False, 'brk': True, 'overflow': False, 'negative': False}
 
 
@@ -307,12 +299,19 @@ class Cpu(object):
       base_address = address % 0x800
       self._memory['RAM'] = value
 
-    if address >= 0x2000 and address < 0x4000:
-      # TODO
-      pass
+    elif address >= 0x2000 and address < 0x4000:
+      address -= 0x2000
+      base = address % 8
+      if base == 0:
+        self._ppu.update_control_1(value)
+      elif base == 1:
+        self._ppu.update_control_2(value)
+    
+    elif address >= 0x8000 and address < 0x10000:
+      self.cartridge.mapper.mem_write(address, value)
 
     else:
-      self._memory[address] = value
+      raise Exception("Unhandled memory write at {0:#4x}".format(self.registers['pc'].value()))
 
   def mem_read(self, address):
     if address < 0 or address >= 0x10000:
@@ -322,13 +321,24 @@ class Cpu(object):
     if address < 0x2000:
       base_address = address % 0x800
       return self._memory['RAM'][address]
+    
+    elif address >= 0x2000 and address < 0x4000:
+      address -= 0x2000
+      base = address % 8
+      if base == 2:
+        return self._ppu.status_register()
+      else:
+        raise Exception('Unhandled I/O register read at {0:#4x}'.format(self.registers['pc'].value()))
 
-    if address >= 0x8000 and address < 0xc000:
+    elif address >= 0x8000 and address < 0xc000:
       # PRG_ROM lower bank
       return self._memory['PRG_ROM'][0][address - 0x8000]
     elif address >= 0xc000:
       # PRG_ROM upper bank
       return self._memory['PRG_ROM'][1][address - 0xc000]
+
+    else:
+      raise Exception('Unhandled memory read at {0:#4x}'.format(self.registers['pc'].value()))
   
   
   def power_on(self):
@@ -357,8 +367,8 @@ class Cpu(object):
           instruction_length = 3
       except KeyError:
         log.debug("Invalid opcode: {0:#2x}".format(opcode))
-      self.registers['pc'] += instruction_length
       self.busy_cycles += Cpu.instruction_set[opcode].cycles
+      self.registers['pc'] += instruction_length
       Cpu.instruction_set[opcode].execute(self, param)
     else:
       self.busy_cycles = self.busy_cycles - 1
@@ -415,4 +425,8 @@ class Cpu(object):
     else:
       raise Exception("Write back not implemented for addressing mode {0}.".format(addressing))
 
+  def set_zero(self, value):
+    self.status['zero'] = (value == 0)
 
+  def set_negative(self, value):
+    self.status['negative'] = (value < 0) 

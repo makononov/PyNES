@@ -4,3 +4,6 @@ class Mapper(object):
 
   def load_prg(self, prg_rom):
     pass
+
+  def mem_write(self, address, value):
+    pass

@@ -53,8 +53,8 @@ class Cartridge:
 
   def load_mapper(self):
     if self._mapper_id == 1:
-      self._mapper = MMC1(self)
+      self.mapper = MMC1(self)
 
   def load_prg(self, prg_rom):
-    self._mapper.load_prg(prg_rom)
+    self.mapper.load_prg(prg_rom)
 
