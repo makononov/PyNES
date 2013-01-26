@@ -1,11 +1,17 @@
 from mappers import *
+import numpy as np
 
 class Cartridge:
   def __init__(self, filename = None):
     if filename is not None:
       self.load(filename)
-
+    self.cpu = None
     self._mapper_id = 0
+
+  def __getattr__(self, name):
+    if name == "prg_rom":
+      pages = self.mapper.loaded_pages
+      return self._prg_rom[pages[0] * 0x4000:(pages[0] + 1) * 0x4000] + self._prg_rom[pages[1] * 0x4000:(pages[1] + 1) * 0x4000]
 
   def load(self, file):
     with open(file, "rb") as f:
@@ -17,10 +23,10 @@ class Cartridge:
         self._trainer = f.read(512)
 
       # Read PRG ROM
-      self._prg_rom = f.read(self._prg_rom_size)
+      self._prg_rom = f.read(self._prg_rom_pages * 0x4000)
 
       # Read CHR ROM
-      self._chr_rom = f.read(self._chr_rom_size)
+      self._chr_rom = f.read(self._chr_rom_pages * 0x2000)
 
   def _parse_header(self, header):
     # Verify legal header.
@@ -28,8 +34,8 @@ class Cartridge:
       raise Exception("Invalid file header.")
     
     self._header = header
-    self._prg_rom_size = header[4] * 0x4000
-    self._chr_rom_size = header[5] * 0x2000
+    self._prg_rom_pages = header[4]
+    self._chr_rom_pages = header[5]
     self._flags6 = header[6]
     self._flags7 = header[7]
 
@@ -54,7 +60,3 @@ class Cartridge:
   def load_mapper(self):
     if self._mapper_id == 1:
       self.mapper = MMC1(self)
-
-  def load_prg(self, prg_rom):
-    self.mapper.load_prg(prg_rom)
-

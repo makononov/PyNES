@@ -15,11 +15,10 @@ class Instruction(object):
     self.cycles = cycles
 
   def execute(self, cpu, param):
-    # log.debug("Executing {0}({1:#2x}) at PC {2:#4x}".format(self.desc, self.opcode, cpu.registers['pc'].value()))
+    log.debug("Executing {0}({1:#2x}) at PC {2:#4x}".format(self.desc, self.opcode, cpu.registers['pc'].value()))
     if (self.desc == "ADC"):
+      # Add value to A with carry.
       carry = int(cpu.status['carry'])
-
-      # Add value to accumulator with carry.
       src = cpu.get_value(self.addressing, param)
       tempsum = src + cpu.registers['a'].value() + carry
       set_zero(tempsum & 0xff)
@@ -38,35 +37,86 @@ class Instruction(object):
       cpu.status['overflow'] = (tempsum != cpu.registers['a'].value())
         
     elif (self.desc == "AND"):
+      # And value with A
       val = cpu.get_value(self.addressing, param)
       val &= cpu.registers['a'].value()
       cpu.registers['a'].set(val)
 
     elif (self.desc == "BIT"):
+      # Compare bits
       src = cpu.get_value(self.addressing, param)
       cpu.set_negative(src)
       cpu.status['overflow'] = (src & 0x40)
       cpu.set_zero(src & cpu.registers['a'].value())
 
+    elif (self.desc == "BNE"):
+      # Branch if result not zero
+      if not cpu.status['zero']:
+        offset = numpy.int8(param)
+        pc = cpu.registers['pc'].value()
+        # Add an extra CPU cycle if going across pages.
+        if (pc & 0xff00) != (pc + offset & 0xff00):
+          cpu.busy_cycles += 1
+        cpu.registers['pc'] += offset
+
     elif (self.desc == "BPL"):
-      offset = numpy.int8(param)
-      pc = cpu.registers['pc'].value()
-      # Add an extra CPU cycle if going across pages.
-      if (pc & 0xff00) != (pc + offset & 0xff00):
-        cpu.busy_cycles += 1
-      cpu.registers['pc'] += offset
+      # Branch on a positive result
+      if not cpu.status['negative']:
+        offset = numpy.int8(param)
+        pc = cpu.registers['pc'].value()
+        # Add an extra CPU cycle if going across pages.
+        if (pc & 0xff00) != (pc + offset & 0xff00):
+          cpu.busy_cycles += 1
+        cpu.registers['pc'] += offset
     
     elif (self.desc == "CLD"):
+      # Clear BCD status flag
       cpu.status['decimal'] = False
 
+    elif (self.desc == "DEX"):
+      # Decrement X
+      cpu.registers['x'] -= 1
+      cpu.set_zero(cpu.registers['x'].value())
+      cpu.set_negative(cpu.registers['x'].value())
+
+    elif (self.desc == "DEY"):
+      # Decrement Y
+      cpu.registers['y'] -= 1
+      cpu.set_zero(cpu.registers['y'].value())
+      cpu.set_negative(cpu.registers['y'].value())
+
+    elif (self.desc == "JSR"):
+      # Jump and save return address
+      pc = cpu.registers['pc'].value() - 1
+      cpu.stack_push((pc >> 8) & 0xff)
+      cpu.stack_push(pc & 0xff)
+      cpu.registers['pc'].set(param)
+
     elif (self.desc == "LDA"):
+      # Load value into A
       cpu.registers['a'].set(cpu.get_value(self.addressing, param))
 
     elif (self.desc == "LDX"):
+      # Load value into X
       cpu.registers['x'].set(cpu.get_value(self.addressing, param))
 
     elif (self.desc == "LDY"):
+      # Load value into Y
       cpu.registers['y'].set(cpu.get_value(self.addressing, param))
+
+    elif(self.desc == "LSR"):
+      # Shift value right one bit
+      value = cpu.get_value(self.addressing, param)
+      cpu.status['carry'] = bool(value & 1)
+      value >>= 1
+      cpu.set_negative(0)
+      cpu.set_zero(value)
+      cpu.write_back(self.addressing, param, value)
+    
+    elif (self.desc == "RTS"):
+      pc = cpu.stack_pop()
+      pc += (cpu.stack_pop() << 8) + 1
+      cpu.registers['pc'].set(pc)
 
     elif (self.desc == "SEI"):
       cpu.status['irqdis'] = True
@@ -276,6 +326,8 @@ class Cpu(object):
   def __init__(self, ppu, cartridge = None):
     log.debug("Initializing CPU")
     self.cartridge = cartridge 
+    self.cartridge.cpu = self
+
     self.busy_cycles = 0
 
     self._ppu = ppu
@@ -284,11 +336,9 @@ class Cpu(object):
     self._memory['RAM'] = [0xff] * 0x800 # 0x0000 - 0x07ff
     self._memory['expansion_rom'] = [0xff] * 0x1fe0 # 0x4020 - 0x5fff
     self._memory['SRAM'] = [0xff] * 0x2000 # 0x6000 - 0x7fff
-    self._memory['PRG_ROM'] = [[], []] # 0x8000 - 0xbfff, 0xc000 - 0xffff, uninitialized since it is filled by the cartridge.
 
     self.registers = {'pc': Register(numpy.uint16), 'a': Register(), 'x': Register(), 'y': Register(), 'sp': Register(numpy.uint8)}
     self.status = {'carry': False, 'zero': False, 'irqdis': True, 'decimal': False, 'brk': True, 'overflow': False, 'negative': False}
-
 
   def mem_write(self, address, value):
     if address < 0 or address >= 0x10000:
@@ -297,7 +347,7 @@ class Cpu(object):
     # RAM is mirrored 4x, so get the base address before writing to the RAM array.
     if (address < 0x2000):
       base_address = address % 0x800
-      self._memory['RAM'] = value
+      self._memory['RAM'][base_address] = value
 
     elif address >= 0x2000 and address < 0x4000:
       address -= 0x2000
@@ -330,16 +380,11 @@ class Cpu(object):
       else:
         raise Exception('Unhandled I/O register read at {0:#4x}'.format(self.registers['pc'].value()))
 
-    elif address >= 0x8000 and address < 0xc000:
-      # PRG_ROM lower bank
-      return self._memory['PRG_ROM'][0][address - 0x8000]
-    elif address >= 0xc000:
-      # PRG_ROM upper bank
-      return self._memory['PRG_ROM'][1][address - 0xc000]
+    elif address >= 0x8000:
+      return self.cartridge.prg_rom[address - 0x8000]
 
     else:
       raise Exception('Unhandled memory read at {0:#4x}'.format(self.registers['pc'].value()))
-  
   
   def power_on(self):
     self.reset()
@@ -347,7 +392,6 @@ class Cpu(object):
   def reset(self):
     if self.cartridge == None:
       raise Exception("System reset with no cartridge loaded.")
-    self.cartridge.load_prg(self._memory['PRG_ROM'])
     self.registers['pc'].set((self.mem_read(0xfffd) << 8) + self.mem_read(0xfffc))
     log.debug("PC initialized to {0:#4x}".format(self.registers['pc'].value()))
 
@@ -405,6 +449,10 @@ class Cpu(object):
       address = self.mem_read(param)
       address += (self.mem_read(param + 1) << 8)
       return self.mem_read(address + self.registers['y'].value())
+    elif (addmode == addressing.ACCUMULATOR):
+      return self.registers['a'].value()
+    else:
+      raise Exception("get_value called for unsupported addressing mode {0}.".format(addmode))
 
   def write_back(self, addmode, address, value):
     if addmode in (addressing.ZEROPAGE, addressing.ABSOLUTE):
@@ -422,11 +470,22 @@ class Cpu(object):
       address = self.mem_read(address)
       address += (self.mem_rest(address + 1) << 8)
       self.mem_write(address + self.registers['y'].value(), value)
+    elif addmode == addressing.ACCUMULATOR:
+      self.registers['a'].set(value)
     else:
-      raise Exception("Write back not implemented for addressing mode {0}.".format(addressing))
+      raise Exception("Write back not implemented for addressing mode {0}.".format(addmode))
 
   def set_zero(self, value):
     self.status['zero'] = (value == 0)
 
   def set_negative(self, value):
-    self.status['negative'] = (value < 0) 
+    self.status['negative'] = (numpy.int8(value) < 0) 
+
+  def stack_push(self, value):
+    self.registers['sp'] -= 1
+    self.mem_write(0x100 + self.registers['sp'].value(), value)
+
+  def stack_pop(self):
+    val = self.mem_read(0x100 + self.registers['sp'].value())
+    self.registers['sp'] += 1
+    return val

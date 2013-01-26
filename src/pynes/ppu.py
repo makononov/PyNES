@@ -1,4 +1,5 @@
 import logging
+from random import random
 import pygame.surfarray as surfarray
 log = logging.getLogger("PyNES")
 
@@ -7,6 +8,10 @@ class Ppu(object):
     log.debug('PPU: Initializing PPU...')
 
     self._surface = surface
+    if self._surface.get_width() % 256 != 0 or self._surface.get_height() % 224 != 0:
+      raise Exception("Invalid display size.")
+    self._width_scalar = self._surface.get_width() / 256
+    self._height_scalar = self._surface.get_height() / 224
 
     self.name_table_address = 0x2000
     self.address_increment = 1
@@ -31,7 +36,7 @@ class Ppu(object):
     self._memory['palettes'] = [0] * 0x20
 
     self._current_scanline = 0
-    self._busy_cycles = 0
+    self._cycles = 0
 
   def update_control_1(self, value):
     log.debug('PPU: Updating control register 1 to {0:b}'.format(value))
@@ -121,24 +126,43 @@ class Ppu(object):
       raise Exception('Unhandled read from VRAM address {0:#4x}'.format(address))
 
   def tick(self):
-    if (self._busy_cycles > 0):
-      self._busy_cycles -= 1
-    elif (self._current_scanline < 240):
-      self.vblank = False
-      if (self._current_scanline < 8 or self._current_scanline > 232):
-        # Top and bottom scanlines are trimmed.
-        pass
-      else:
-        background_color = self.vram_read(0x3f00)
-        # Draw the current scanline.
-        pixels = surfarray.pixels2d(self._surface)
-        #FIXME
-        pixels[self._current_scanline - 8].fill(background_color)
-        self._busy_cycles = 113
-        pixels = None
-    elif (self._current_scanline == 243):
-      # Begin VBLANK
-      log.debug('Entering VBLANK...')
+    self._cycles += 1
+
+    if self._cycles == 27425:
+      # Enter VBLANK
+      log.debug("Entering VBLANK...")
       self.vblank = True
-      self._busy_cycles = 113 * 20
-      self._current_scanline = 0
+
+    if self._cycles == 29691:
+      # End of VBLANK, update screen
+      self.vblank = False
+      self.update_disp()
+      self._cycles = 0
+
+    # log.debug("Scanline {0}".format(self._current_scanline))
+    # if (self._busy_cycles > 0):
+    #   self._busy_cycles -= 1
+    # elif self._current_scanline < 243:
+    #   self.vblank = False
+    #   if (self._current_scanline < 8 or self._current_scanline > 232):
+    #     # Top and bottom scanlines are trimmed.
+    #     pass
+    #   else:
+    #     # background_color = self.vram_read(0x3f00)
+    #     background_color = int(random() * 64)
+    #     # Draw the current scanline.
+    #     pixels = surfarray.pixels2d(self._surface)
+    #     #FIXME
+    #     pixels[self._current_scanline - 8].fill(background_color)
+    #     pixels = None
+    #   self._busy_cycles = 113
+    #   self._current_scanline += 1
+    # else:
+    #   # Begin VBLANK
+    #   log.debug('Entering VBLANK...')
+    #   self.vblank = True
+    #   self._busy_cycles = 113 * 20
+    #   self._current_scanline = 0
+
+  def update_disp(self):
+    pass
