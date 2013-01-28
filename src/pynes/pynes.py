@@ -3,7 +3,9 @@ from pygame.locals import *
 import numpy as np
 from cpu import Cpu
 from ppu import Ppu
+from papu import Papu
 from cartridge import Cartridge
+from controllers import KeyboardController
 import logging, sys
 
 BREAKPOINTS = []
@@ -13,7 +15,6 @@ class Pynes:
     self._running = True
     self._display_surf = None
     self.size = self.width, self.height = 512, 448
-    self.cycle_count = 0
 
   def on_init(self):
     pygame.init()
@@ -89,7 +90,8 @@ class Pynes:
     self._running = True
     self.cartridge = Cartridge("../../test/ff.nes")
     self.ppu = Ppu(self._display_surf)
-    self.cpu = Cpu(self.ppu, self.cartridge)
+    self.papu = Papu()
+    self.cpu = Cpu(self.ppu, self.papu, self.cartridge, KeyboardController(self._display_surf))
     self.cpu.power_on()
 
   def on_event(self, event):
@@ -97,10 +99,8 @@ class Pynes:
       self._running = False
   
   def on_loop(self):
-    if self.cpu.registers['pc'].value() in BREAKPOINTS:
-      raise Exception("Breakpoint at {0:#4x}".format(self.cpu.registers['pc'].value()))
-    self.cycle_count += 1
-    # log.debug("Cycle {0} - PC: {1:#4x}".format(self.cycle_count, self.cpu.registers['pc'].value()))
+    if self.cpu.registers['pc'] in BREAKPOINTS:
+      raise Exception("Breakpoint at {0:#4x}".format(self.cpu.registers['pc']))
     self.cpu.tick() 
     self.ppu.tick()
 

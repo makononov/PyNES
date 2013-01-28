@@ -1,5 +1,4 @@
 import logging
-from random import random
 import pygame.surfarray as surfarray
 log = logging.getLogger("PyNES")
 
