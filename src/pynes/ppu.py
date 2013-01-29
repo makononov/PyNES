@@ -33,6 +33,13 @@ class Ppu(object):
     self._memory['pattern_tables'] = [0] * 0x2000
     self._memory['name_tables'] = [0] * 0x1000
     self._memory['palettes'] = [0] * 0x20
+    self._memory['SPR_RAM'] = [0] * 0xff
+
+    self.spr_ram_addr = 0
+    self.vram_addr = 0
+    self.vertical_scroll_register = 0
+    self.hotizontal_scroll_register = 0
+    self.vert_scroll_reg = True 
 
     self._current_scanline = 0
     self._cycles = 0
@@ -54,7 +61,7 @@ class Ppu(object):
     if (value & (1 << 4)):
       self.background_pattern_table = 0x1000
     else:
-      self.backgroun_pattern_table = 0x0000
+      self.background_pattern_table = 0x0000
 
     if (value & (1 << 5)):
       self.sprite_size = 16
@@ -79,9 +86,49 @@ class Ppu(object):
     value += (int(self.scanline_sprite_count > 8) << 5)
     value += (int(self.sprite_0_hit) << 6)
     value += (int(self.vblank) << 7)
+
+    # Clear VBLANK flag and both VRAM address registers.
+    self.vblank = False
+    self.vram_addr_1 = 0
+    self.vram_addr_2 = 0
     return value
 
+  def mem_write(self, address, value):
+    base_address = address - 0x2000
+    register = address % 8
+    if register == 0:
+      self.update_control_1(value)
+    elif register == 1:
+      self.update_control_2(value)
+    elif register == 2:
+      raise Exception("Write to read-only register at 0x2002")
+    elif register == 3:
+      self.spr_ram_addr = value
+    elif register == 4:
+      self._memory['SPR_RAM'][self.spr_ram_addr] = value
+    elif register == 5:
+      if self.vert_scroll_reg:
+        log.debug("Writing {0:#4x} to the VSR.".format(value))
+        if (value <= 0xef):
+          self.vertical_scroll_register = value
+        self.vert_scroll_reg = False
+      else:
+        log.debug("Writing {0:#4x} to the HSR.".format(value))
+        self.horizontal_scroll_register = value
+        self.vert_scroll_reg = True
+    elif register == 6:
+      self.vram_addr_2 = (self.vram_addr_2 << 8) & 0xff00
+      self.vram_addr_2 += value
+    elif register == 7:
+      self.vram_write(self.vram_addr_2, value)
+      self.vram_addr_2 += self.address_increment
+      
+
+
   def vram_write(self, address, value):
+    # log.debug('Write to VRAM address {0:#4x}'.format(address))
+    if self._cycles < 27425:
+      log.warn("Write to VRAM outside of VBLANK. Mid-frame update currently unimplemented.")
     if not self.ignore_vram:
       if address >= 0 and address < 0x2000:
         self._memory['pattern_tables'][address] = value
@@ -90,12 +137,10 @@ class Ppu(object):
       elif address >= 0x3000 and address < 0x3f00:
         mirrored_address = address - 0x1000
         self.vram_write(address, value)
-      elif address >= 0x3f00 and address < 0x3f20:
-        self._memory['palettes'][address - 0x3f00] = value
-      elif address >= 0x3f20 and address < 0x4000:
-        mirrored_address = address - 0x3f20
-        mirrored_address %= 0x20
-        self._memory['palettes'][mirrored_address] = value
+      elif address >= 0x3f00 and address < 0x4000:
+        address -= 0x3f00
+        address %= 20
+        self._memory['palettes'][address] = value
       elif address >= 0x4000 and address < 0x10000:
         address -= 0x4000
         address %= 0x4000
@@ -129,39 +174,20 @@ class Ppu(object):
 
     if self._cycles == 27425:
       # Enter VBLANK
-      log.debug("Entering VBLANK...")
-      self.vblank = True
+      self.enter_vblank()
+      return True
 
     if self._cycles == 29691:
       # End of VBLANK, update screen
       self.vblank = False
       self.update_disp()
       self._cycles = 0
-
-    # log.debug("Scanline {0}".format(self._current_scanline))
-    # if (self._busy_cycles > 0):
-    #   self._busy_cycles -= 1
-    # elif self._current_scanline < 243:
-    #   self.vblank = False
-    #   if (self._current_scanline < 8 or self._current_scanline > 232):
-    #     # Top and bottom scanlines are trimmed.
-    #     pass
-    #   else:
-    #     # background_color = self.vram_read(0x3f00)
-    #     background_color = int(random() * 64)
-    #     # Draw the current scanline.
-    #     pixels = surfarray.pixels2d(self._surface)
-    #     #FIXME
-    #     pixels[self._current_scanline - 8].fill(background_color)
-    #     pixels = None
-    #   self._busy_cycles = 113
-    #   self._current_scanline += 1
-    # else:
-    #   # Begin VBLANK
-    #   log.debug('Entering VBLANK...')
-    #   self.vblank = True
-    #   self._busy_cycles = 113 * 20
-    #   self._current_scanline = 0
+    
+    return False
 
   def update_disp(self):
     pass
+
+  def enter_vblank(self):
+    log.debug("Entering VBLANK...")
+    self.vblank = True

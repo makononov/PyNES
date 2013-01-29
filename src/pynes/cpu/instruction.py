@@ -20,7 +20,8 @@ class Instruction(object):
       self.param_length = 0
 
   def execute(self, param):
-    log.debug("Executing {0}({1:#2x}) at PC {2:#4x}".format(self.desc, self.opcode, self.cpu.registers['pc']))
+    # log.debug("{0:#4x}: {1}, A={2}, X={3}, Y={4}".format(self.cpu.registers['pc'], self.print_call(param), self.cpu.registers['a'], self.cpu.registers['x'], self.cpu.registers['y']))
+    # log.debug("Executing {0}({1:#2x}) at PC {2:#4x}".format(self.desc, self.opcode, self.cpu.registers['pc']))
     try:
       method = getattr(self, self.desc)
     except AttributeError:
@@ -31,33 +32,33 @@ class Instruction(object):
     else:
       method()
 
-  def __unicode__(self):
+  def print_call(self, param = None):
       if self.addressing == addressing.NONE:
-        return "{0}({1:#3x})".format(self.desc, self.opcode)
+        return "{0}".format(self.desc)
       if self.addressing == addressing.IMMEDIATE:
-        return "{0}({1:#3x}) #".format(self.desc, self.opcode)
+        return "{0} #{1}".format(self.desc, param)
       if self.addressing == addressing.ZEROPAGE:
-        return "{0}({1:#3x}) 0x00".format(self.desc, self.opcode)
+        return "{0} {1:#4x}".format(self.desc, param)
       if self.addressing == addressing.ZEROPAGE_X:
-        return "{0}({1:#3x}) 0x00, X".format(self.desc, self.opcode)
+        return "{0} {1:#4x}, X".format(self.desc, param)
       if self.addressing == addressing.ZEROPAGE_Y:
-        return "{0}({1:#3x}) 0x00, Y".format(self.desc, self.opcode)
+        return "{0} {1:#4x}, Y".format(self.desc, param)
       if self.addressing == addressing.ABSOLUTE:
-        return "{0}({1:#3x}) 0x0000".format(self.desc, self.opcode)
+        return "{0} {1:#4x}".format(self.desc, param)
       if self.addressing == addressing.ABSOLUTE_X:
-        return "{0}({1:#3x}) 0x0000, X".format(self.desc, self.opcode)
+        return "{0} {1:#4x}, X".format(self.desc, param)
       if self.addressing == addressing.ABSOLUTE_Y:
-        return "{0}({1:#3x}) 0x0000, Y".format(self.desc, self.opcode)
+        return "{0} {1:#4x}, Y".format(self.desc, param)
       if self.addressing == addressing.INDIRECT:
-        return "{0}({1:#3x}) (0x0000)".format(self.desc, self.opcode)
+        return "{0} ({1:#4x})".format(self.desc, param)
       if self.addressing == addressing.INDIRECT_X:
-        return "{0}({1:#3x}) (0x00, X)".format(self.desc, self.opcode)
+        return "{0} ({1:#4x}, X)".format(self.desc, param)
       if self.addressing == addressing.INDIRECT_Y:
-        return "{0}({1:#3x}) (0x00), Y".format(self.desc, self.opcode)
+        return "{0} ({1:#4x}), Y".format(self.desc, param)
       if self.addressing == addressing.RELATIVE:
-        return "{0}({1:#3x}) +/-127".format(self.desc, self.opcode)
+        return "{0} {1}".format(self.desc, numpy.int8(param))
       if self.addressing == addressing.ACCUMULATOR:
-        return "{0}({1:#3x})".format(self.desc, self.opcode)
+        return "{0} A".format(self.desc)
 
   ###################
   ##  Individual instruction execution logic
@@ -68,7 +69,7 @@ class Instruction(object):
     carry = int(self.cpu.status['carry'])
     src = self.cpu.get_value(self.addressing, param)
     tempsum = src + self.cpu.registers['a'] + carry
-    set_zero(tempsum & 0xff)
+    self.cpu.set_zero(tempsum & 0xff)
     if (self.cpu.status['decimal']):
       if (self.cpu.registers['a'] & 0xf) + (src & 0xf) + carry > 9:
         tempsum += 6
@@ -78,7 +79,7 @@ class Instruction(object):
     else:
       self.cpu.status['carry'] = (tempsum > 0xff)
 
-    self.cpu.registers['a'] = tempsum
+    self.cpu.registers['a'] = numpy.uint8(tempsum)
     self.cpu.set_zero(tempsum)
     self.cpu.set_negative(tempsum)
     self.cpu.status['overflow'] = (tempsum != self.cpu.registers['a'])
@@ -87,7 +88,36 @@ class Instruction(object):
   def AND(self, param):
     val = self.cpu.get_value(self.addressing, param)
     val &= self.cpu.registers['a']
-    self.cpu.registers['a'] = val
+    self.cpu.registers['a'] = numpy.uint8(val)
+
+  # Shift left one bit
+  def ASL(self, param = None):
+    value = self.cpu.get_value(self.addressing, param)
+    self.cpu.status['carry'] = bool(value & 0x80)
+    value = (value << 1) & 0xff
+    self.cpu.set_negative(value)
+    self.cpu.set_zero(value)
+    self.cpu.write_back(self.addressing, param, value)
+
+  # Branch if Carry flag is *not* set
+  def BCC(self, param):
+    if not self.cpu.status['carry']:
+      offset = numpy.int8(param)
+      pc = self.cpu.registers['pc']
+      # Add an extra CPU cycle if going across pages.
+      if (pc * 0xff00) != (pc + offset & 0xff00):
+        self.cpu.busy_cycles += 1
+      self.cpu.registers['pc'] += offset
+
+  # Branch if Carry flag is set
+  def BCS(self, param):
+    if self.cpu.status['carry']:
+      offset = numpy.int8(param)
+      pc = self.cpu.registers['pc']
+      # Add an extra CPU cycle if going across pages.
+      if (pc * 0xff00) != (pc + offset & 0xff00):
+        self.cpu.busy_cycles += 1
+      self.cpu.registers['pc'] += offset
 
   # Compare bits
   def BIT(self, param):
@@ -96,7 +126,26 @@ class Instruction(object):
     self.cpu.status['overflow'] = (src & 0x40)
     self.cpu.set_zero(src & self.cpu.registers['a'])
 
-  
+  # Branch if result is zero
+  def BEQ(self, param):
+    if self.cpu.status['zero']:
+      offset = numpy.int8(param)
+      pc = self.cpu.registers['pc']
+      # Add an extra CPU cycle if going across pages.
+      if (pc * 0xff00) != (pc + offset & 0xff00):
+        self.cpu.busy_cycles += 1
+      self.cpu.registers['pc'] += offset
+
+  # Branch on negative result
+  def BMI(self, param):
+    if self.cpu.status['negative']:
+      offset = numpy.int8(param)
+      pc = self.cpu.registers['pc']
+      # Add an extra CPU cycle if going across pages.
+      if (pc & 0xff00) != (pc + offset & 0xff00):
+        self.cpu.busy_cycles += 1
+      self.cpu.registers['pc'] += offset
+
   # Branch if result not zero
   def BNE(self, param):
     if not self.cpu.status['zero']:
@@ -116,14 +165,43 @@ class Instruction(object):
       if (pc & 0xff00) != (pc + offset & 0xff00):
         self.cpu.busy_cycles += 1
       self.cpu.registers['pc'] += offset
+
+  # Clear Carry status flag
+  def CLC(self):
+    self.cpu.status['carry'] = False
     
   # Clear BCD status flag
   def CLD(self):
     self.cpu.status['decimal'] = False
 
+  # Compare accumulator and memory
   def CMP(self, param):
-    #TODO
-    pass
+    comp = self.cpu.registers['a'] - self.cpu.get_value(self.addressing, param)
+    self.cpu.status['carry'] = (comp < 0x100)
+    self.cpu.set_negative(comp)
+    self.cpu.set_zero(comp & 0xff)
+
+  # Compare X and memory
+  def CPX(self, param):
+    comp = self.cpu.registers['x'] - self.cpu.get_value(self.addressing, param)
+    self.cpu.status['carry'] = (comp < 0x100)
+    self.cpu.set_negative(comp)
+    self.cpu.set_zero(comp & 0xff)
+
+  # Compare Y and memory
+  def CPY(self, param):
+    comp = self.cpu.registers['y'] - self.cpu.get_value(self.addressing, param)
+    self.cpu.status['carry'] = (comp < 0x100)
+    self.cpu.set_negative(comp)
+    self.cpu.set_zero(comp & 0xff)
+
+  # Decrement memory
+  def DEC(self, param):
+    value = self.cpu.get_value(self.addressing, param)
+    value = (value - 1) & 0xff
+    self.cpu.set_negative(value)
+    self.cpu.set_zero(value)
+    self.cpu.write_back(self.addressing, param, value) 
 
   # Decrement X
   def DEX(self):
@@ -136,6 +214,14 @@ class Instruction(object):
     self.cpu.registers['y'] -= 1
     self.cpu.set_zero(self.cpu.registers['y'])
     self.cpu.set_negative(self.cpu.registers['y'])
+
+  # Increment memory
+  def INC(self, param):
+    value = self.cpu.get_value(self.addressing, param)
+    value = (value + 1) & 0xff
+    self.cpu.set_negative(value)
+    self.cpu.set_zero(value)
+    self.cpu.write_back(self.addressing, param, value)
 
   # Increment X
   def INX(self):
@@ -155,26 +241,36 @@ class Instruction(object):
 
   # Jump to a new location
   def JMP(self, param):
-    self.cpu.registers['pc'] = param
+    self.cpu.registers['pc'] = numpy.uint16(param)
 
   # Jump and save return address
   def JSR(self, param):
     pc = self.cpu.registers['pc'] - 1
     self.cpu.stack_push((pc >> 8) & 0xff)
     self.cpu.stack_push(pc & 0xff)
-    self.cpu.registers['pc'] = param
+    self.cpu.registers['pc'] = numpy.uint16(param)
 
   # Load value into A
   def LDA(self, param):
-    self.cpu.registers['a'] = self.cpu.get_value(self.addressing, param)
+    src = self.cpu.get_value(self.addressing, param)
+    self.cpu.set_negative(src)
+    self.cpu.set_zero(src)
+    self.cpu.registers['a'] = src
+
 
   # Load value into X
   def LDX(self, param):
-    self.cpu.registers['x'] = self.cpu.get_value(self.addressing, param)
+    src = self.cpu.get_value(self.addressing, param)
+    self.cpu.set_negative(src)
+    self.cpu.set_zero(src)
+    self.cpu.registers['x'] = src
 
   # Load value into Y
   def LDY(self, param):
-    self.cpu.registers['y'] = self.cpu.get_value(self.addressing, param)
+    src = self.cpu.get_value(self.addressing, param)
+    self.cpu.set_negative(src)
+    self.cpu.set_zero(src)
+    self.cpu.registers['y'] = src
 
   # Shift value right one bit
   def LSR(self, param = None):
@@ -184,12 +280,20 @@ class Instruction(object):
     self.cpu.set_negative(0)
     self.cpu.set_zero(value)
     self.cpu.write_back(self.addressing, param, value)
-    
+
+  # OR memory with accumulator
+  def ORA(self, param):
+    value = self.cpu.get_value(self.addressing, param)
+    value |= self.cpu.registers['a']
+    self.cpu.set_negative(value)
+    self.cpu.set_zero(value)
+    self.cpu.registers['a'] = numpy.uint8(value)
+
   # Return to location on stack after a JSR
   def RTS(self):
     pc = self.cpu.stack_pop()
     pc += (self.cpu.stack_pop() << 8) + 1
-    self.cpu.registers['pc'] = pc
+    self.cpu.registers['pc'] = numpy.uint16(pc)
 
   # Set the interrupt disable flag.
   def SEI(self):
@@ -207,10 +311,45 @@ class Instruction(object):
   def STY(self, param):
     self.cpu.write_back(self.addressing, param, self.cpu.registers['y'])
 
+  # Transfer A to X
+  def TAX(self):
+    src = numpy.uint8(self.cpu.registers['a'])
+    self.cpu.set_negative(src)
+    self.cpu.set_zero(src)
+    self.cpu.registers['x'] = src
+
+  # Transfer A to Y
+  def TAY(self):
+    src = numpy.uint8(self.cpu.registers['a'])
+    self.cpu.set_negative(src)
+    self.cpu.set_zero(src)
+    self.cpu.registers['y'] = src
+
+  # Transfer SP to X
+  def TSX(self):
+    src = numpy.uint8(self.cpu.registers['sp'])
+    self.cpu.set_negative(src)
+    self.cpu.set_zero(src)
+    self.cpu.registers['x'] = src
+
+  # Transfer X to A
+  def TXA(self):
+    src = numpy.uint8(self.cpu.registers['x'])
+    self.cpu.set_negative(src)
+    self.cpu.set_zero(src)
+    self.cpu.registers['a'] = src
+
   # Transfer the value in X to SP
   def TXS(self):
     sp = numpy.uint8(self.cpu.registers['x'])
     self.cpu.registers['sp'] = sp
+
+  # Transfer the value in Y to A
+  def TYA(self):
+    src = numpy.uint8(self.cpu.registers['y'])
+    self.cpu.set_negative(src)
+    self.cpu.set_zero(src)
+    self.cpu.registers['a'] = src 
 
 
 class InstructionSet(object):
@@ -300,7 +439,7 @@ class InstructionSet(object):
       0x8c: Instruction(0x8c, "STY", addressing.ABSOLUTE, 4),
       0x8d: Instruction(0x8d, "STA", addressing.ABSOLUTE, 4),
       0x8e: Instruction(0x8e, "STX", addressing.ABSOLUTE, 4),
-      0x90: Instruction(0x90, "BCC", addressing.NONE, 2),
+      0x90: Instruction(0x90, "BCC", addressing.RELATIVE, 2),
       0x91: Instruction(0x91, "STA", addressing.INDIRECT_Y, 6),
       0x94: Instruction(0x94, "STY", addressing.ZEROPAGE_X, 4),
       0x95: Instruction(0x95, "STA", addressing.ZEROPAGE_X, 4),

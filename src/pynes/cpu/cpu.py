@@ -17,7 +17,7 @@ class Cpu(object):
     self.controller2 = controller2
 
     self._instruction_set = InstructionSet(self)
-    self._busy_cycles = 0
+    self.busy_cycles = 0
 
     self._ppu = ppu
     self._papu = papu
@@ -38,18 +38,20 @@ class Cpu(object):
     # RAM is mirrored 4x, so get the base address before writing to the RAM array.
     if (address < 0x2000):
       base_address = address % 0x800
+      # log.debug("WRITE to RAM address {0:#x}".format(base_address))
       self._memory['RAM'][base_address] = value
 
+    # PPU I/O registers
     elif address >= 0x2000 and address < 0x4000:
-      address -= 0x2000
-      base = address % 8
-      if base == 0:
-        self._ppu.update_control_1(value)
-      elif base == 1:
-        self._ppu.update_control_2(value)
+      self._ppu.mem_write(address, value)
     
+    # pAPU I/O registers
     elif (address >= 0x4000 and address < 0x4014) or address == 0x4015:
       self._papu.register_write(address, value)
+
+    # DMA Sprite Transfer
+    elif address == 0x4014:
+      raise Exception("DMA Sprite Transfer not implemented.")
 
     elif address == 0x4016:
       if self.controller1 != None:
@@ -75,6 +77,7 @@ class Cpu(object):
     # RAM is mirrored 4x, so get the base address before returning the value from the RAM array.
     if address < 0x2000:
       base_address = address % 0x800
+      # log.debug("Read from RAM address {0:#x}".format(base_address))
       return self._memory['RAM'][address]
     
     elif address >= 0x2000 and address < 0x4000:
@@ -84,6 +87,9 @@ class Cpu(object):
         return self._ppu.status_register()
       else:
         raise Exception('Unhandled I/O register read at {0:#4x}'.format(self.registers['pc']))
+
+    elif address >= 0x6000 and address < 0x8000:
+      return self._memory['SRAM'][address - 0x6000]
 
     elif address >= 0x8000:
       return self.cartridge.prg_rom[address - 0x8000]
@@ -101,7 +107,7 @@ class Cpu(object):
     log.debug("PC initialized to {0:#4x}".format(self.registers['pc']))
 
   def tick(self):
-    if (self._busy_cycles == 0):
+    if (self.busy_cycles == 0):
       # ready for the next instruction.
       opcode = self.mem_read(self.registers['pc'])
       self.registers['pc'] += 1
@@ -109,11 +115,11 @@ class Cpu(object):
       for i in range(0, self._instruction_set[opcode].param_length):
         param += (self.mem_read(self.registers['pc'] + i) << (8 * i))
 
-      self._busy_cycles += self._instruction_set[opcode].cycles
+      self.busy_cycles += self._instruction_set[opcode].cycles
       self.registers['pc'] += self._instruction_set[opcode].param_length
       self._instruction_set[opcode].execute(param)
     else:
-      self._busy_cycles = self._busy_cycles - 1
+      self.busy_cycles = self.busy_cycles - 1
 
   def get_value(self, addmode, param):
     if (addmode == addressing.IMMEDIATE):
@@ -121,16 +127,10 @@ class Cpu(object):
     elif (addmode == addressing.ZEROPAGE):
       return self.mem_read(param)
     elif (addmode == addressing.ZEROPAGE_X):
-      address = param + self.registers['x']
-      # Wrap address so that it is always on the zero page.
-      if address > 0xff:
-        address -= 0x100
+      address = numpy.uint8(param + self.registers['x'])
       return self.mem_read(address)
     elif (addmode == addressing.ZEROPAGE_Y):
-      address = param + self.registers['y']
-      # Wrap address so that it is always on the zero page.
-      if address > 0xff:
-        address -= 0x100
+      address = numpy.uint8(param + self.registers['y'])
       return self.mem_read(address)
     elif (addmode == addressing.ABSOLUTE):
       return self.mem_read(param)
@@ -169,7 +169,7 @@ class Cpu(object):
       address += (self.mem_rest(address + 1) << 8)
       self.mem_write(address + self.registers['y'], value)
     elif addmode == addressing.ACCUMULATOR:
-      self.registers['a'] = value
+      self.registers['a'] = numpy.int8(value)
     else:
       raise Exception("Write back not implemented for addressing mode {0}.".format(addmode))
 
@@ -178,6 +178,26 @@ class Cpu(object):
 
   def set_negative(self, value):
     self.status['negative'] = (numpy.int8(value) < 0) 
+  
+  def get_status_register(self):
+    value = int(self.status['carry'])
+    value += int(self.status['zero']) << 1
+    value += int(self.status['irqdis']) << 2
+    value += int(self.status['decimal']) << 3
+    value += int(self.status['brk']) << 4
+    value += 1 << 5
+    value += int(self.status['overflow']) << 6
+    value += int(self.status['negative']) << 7
+    return value
+  
+  def set_status_register(self, value):
+    self.status['carry'] = bool(value & (1))
+    self.status['zero'] = bool(value & (1 << 1))
+    self.status['irqdis'] = bool(value & (1 << 2))
+    self.status['decimal'] = bool(value & (1 << 3))
+    self.status['brk'] = bool(value & (1 << 4))
+    self.status['overflow'] = bool(value & (1 << 6))
+    self.status['negative'] = bool(value & (1 << 7))
 
   def stack_push(self, value):
     self.registers['sp'] -= 1
@@ -187,3 +207,17 @@ class Cpu(object):
     val = self.mem_read(0x100 + self.registers['sp'])
     self.registers['sp'] += 1
     return val
+
+  def interrupt(self, int_type):
+    pc = self.registers['pc'] - 1
+    self.stack_push((pc >> 8) & 0xff)
+    self.stack_push(pc & 0xff)
+    self.stack_push(self.get_status_register())
+
+    if int_type == 'NMI':
+      self.registers['pc'] = (self.mem_read(0xfffb) << 8) + self.mem_read(0xfffa)      
+    elif int_type == 'IRQ':
+      self.registers['pc'] = (self.mem_read(0xffff) << 8) + self.mem_read(0xfffe)
+    else:
+      raise Exception("Unhandled interrupt type {0}.".format(int_type))
+    

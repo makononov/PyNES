@@ -102,7 +102,9 @@ class Pynes:
     if self.cpu.registers['pc'] in BREAKPOINTS:
       raise Exception("Breakpoint at {0:#4x}".format(self.cpu.registers['pc']))
     self.cpu.tick() 
-    self.ppu.tick()
+    nmi = self.ppu.tick()
+    if nmi:
+      self.cpu.interrupt('NMI')
 
   def on_render(self):
     pass
