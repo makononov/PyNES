@@ -1,131 +1,30 @@
-import pygame
-from pygame.locals import *
-import numpy as np
-from cpu import Cpu
-from ppu import Ppu
-from papu import Papu
+from console import Console
 from cartridge import Cartridge
 from controllers import KeyboardController
+import pyglet
 import logging, sys
 
 BREAKPOINTS = []
 
 class Pynes:
-  def __init__(self):
-    self._running = True
-    self._display_surf = None
-    self.size = self.width, self.height = 512, 448
+	def __init__(self):
+		self._running = True
+		self.window = pyglet.window.Window(width = 512, height = 448)
+		self.console = Console()
+		# self.console.load_cartridge(Cartridge("../../test/ff.nes"))
 
-  def on_init(self):
-    pygame.init()
-    self._display_surf = pygame.display.set_mode(self.size, pygame.HWSURFACE | pygame.DOUBLEBUF, 8)
-
-    # Set NES color palette.
-    self._display_surf.set_palette([
-      (0x75, 0x75, 0x75),
-      (0x27, 0x1b, 0x8f),
-      (0x00, 0x00, 0xab),
-      (0x47, 0x00, 0x9f),
-      (0x8f, 0x00, 0x77),
-      (0xab, 0x00, 0x13),
-      (0xa7, 0x00, 0x00),
-      (0x7f, 0x0b, 0x00),
-      (0x43, 0x2f, 0x00),
-      (0x00, 0x47, 0x00),
-      (0x00, 0x51, 0x00),
-      (0x00, 0x3f, 0x17),
-      (0x1b, 0x3f, 0x5f),
-      (0x00, 0x00, 0x00),
-      (0x00, 0x00, 0x00),
-      (0x00, 0x00, 0x00),
-      (0xbc, 0xbc, 0xbc),
-      (0x00, 0x73, 0xef),
-      (0x23, 0x3b, 0xef),
-      (0x83, 0x00, 0xf3),
-      (0xbf, 0x00, 0xbf),
-      (0xe7, 0x00, 0x5b),
-      (0xdb, 0x2b, 0x00),
-      (0xcb, 0x4f, 0x0f),
-      (0x8b, 0x73, 0x00),
-      (0x00, 0x97, 0x00),
-      (0x00, 0xab, 0x00),
-      (0x00, 0x93, 0x3b),
-      (0x00, 0x83, 0x8b),
-      (0x00, 0x00, 0x00),
-      (0x00, 0x00, 0x00),
-      (0x00, 0x00, 0x00),
-      (0xff, 0xff, 0xff),
-      (0x3f, 0xbf, 0xff),
-      (0x5f, 0x97, 0xff),
-      (0xa7, 0x8b, 0xfd),
-      (0xf7, 0x7b, 0xff),
-      (0xff, 0x77, 0xb7),
-      (0xff, 0x77, 0x63),
-      (0xff, 0x9b, 0x3b),
-      (0xf3, 0xbf, 0x3f),
-      (0x83, 0xd3, 0x13),
-      (0x4f, 0xdf, 0x4b),
-      (0x58, 0xf8, 0x98),
-      (0x00, 0xeb, 0xdb),
-      (0x00, 0x00, 0x00),
-      (0x00, 0x00, 0x00),
-      (0x00, 0x00, 0x00),
-      (0xff, 0xff, 0xff),
-      (0xab, 0xe7, 0xff),
-      (0xc7, 0xd7, 0xff),
-      (0xd7, 0xcb, 0xff),
-      (0xff, 0xc7, 0xff),
-      (0xff, 0xc7, 0xdb),
-      (0xff, 0xbf, 0xb3),
-      (0xff, 0xdb, 0xab),
-      (0xff, 0xe7, 0xa3),
-      (0xe3, 0xff, 0xa3),
-      (0xab, 0xf3, 0xbf),
-      (0xb3, 0xff, 0xcf),
-      (0x9f, 0xff, 0xf3),
-      (0x00, 0x00, 0x00),
-      (0x00, 0x00, 0x00),
-      (0x00, 0x00, 0x00)
-    ])
-    self._running = True
-    self.cartridge = Cartridge("../../test/ff.nes")
-    self.ppu = Ppu(self._display_surf)
-    self.papu = Papu()
-    self.cpu = Cpu(self.ppu, self.papu, self.cartridge, KeyboardController(self._display_surf))
-    self.cpu.power_on()
-
-  def on_event(self, event):
-    if event.type == pygame.QUIT:
-      self._running = False
-  
-  def on_loop(self):
-    if self.cpu.registers['pc'] in BREAKPOINTS:
-      raise Exception("Breakpoint at {0:#4x}".format(self.cpu.registers['pc']))
-    self.cpu.tick() 
-    nmi = self.ppu.tick()
-    if nmi:
-      self.cpu.interrupt('NMI')
-
-  def on_render(self):
-    pass
-
-  def on_cleanup(self):
-    pygame.quit()
-  
-  def on_execute(self):
-    if self.on_init() == False:
-      self._running = False
-
-    while( self._running ):
-      for event in pygame.event.get():
-        self.on_event(event)
-      self.on_loop()
-      self.on_render()
-    self.on_cleanup()
+	@self.window.event
+	def on_draw():
+		self.window.clear()
+		screen = pyglet.image.ImageData(256, 224, "RGB", self.console.ppu.get_screen())
+		screen.blit(0, 0)
+	
+	def execute(self):
+		pyglet.app.run()
 
 if __name__ == "__main__":
-  logging.basicConfig(stream = sys.stderr)
-  log = logging.getLogger('PyNES')
-  log.setLevel(logging.DEBUG)
-  theApp = Pynes()
-  theApp.on_execute()
+	logging.basicConfig(stream = sys.stderr)
+	log = logging.getLogger('PyNES')
+	log.setLevel(logging.DEBUG)
+	theApp = Pynes()
+	theApp.execute()
