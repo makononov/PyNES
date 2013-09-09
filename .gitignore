@@ -4,3 +4,5 @@ lib
 .Python
 *.pyc
 build
+*.iml
+.idea
