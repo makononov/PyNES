@@ -5,7 +5,6 @@ class Cartridge:
   def __init__(self, filename = None):
     if filename is not None:
       self.load(filename)
-    self.cpu = None
     self._mapper_id = 0
 
   def __getattr__(self, name):
@@ -60,3 +59,5 @@ class Cartridge:
   def load_mapper(self):
     if self._mapper_id == 1:
       self.mapper = MMC1(self)
+    else:
+        raise Exception("Memory mapper ID #" + self._mapper_id + " not yet implemented.")
