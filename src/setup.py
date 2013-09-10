@@ -8,4 +8,4 @@ setup(name='PyNES',
       author_email='misha@mishakononov.com',
       license='MIT',
       packages=['pynes'],
-      zip_safe=False)
+      zip_safe=False, requires=['pyglet', 'numpy'])
