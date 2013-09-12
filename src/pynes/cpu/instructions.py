@@ -2,8 +2,10 @@ __author__ = 'misha'
 
 import numpy as np
 
+
 class Instruction:
     class AddressingMode:
+        # TODO: Add proper returns to addressing modes.
         class NONE:
             pass
 
@@ -65,14 +67,42 @@ class Instruction:
                 return cpu.registers['a']
 
 
-    @staticmethod
-    def ADC(self, param):
-        pass
-
     def __init__(self, cpu, fn, addressing):
         self._cpu = cpu
         self._fn = fn
-        self._addmode = addressing
+        self._admode = addressing
+
 
     def __call__(self, *args, **kwargs):
-        pass
+        value, cycles, memlocs = self._admode.get_value(*args)
+        fn_value, fn_cycles = self._fn(self._cpu, value)
+        if fn_value is not None:
+            self._admode.write_value(fn_value)
+
+        return cycles + fn_cycles, memlocs
+
+
+    @staticmethod
+    def ADC(cpu, value):
+        """
+        Add value to A with carry
+        """
+        carry = int(cpu.get_status('carry'))
+        total = value + cpu.registers['a'].read() + carry
+        cpu.set_status('zero', total & 0xff)
+        if cpu.get_status('decimal'):
+            if (cpu.registers['a'].read() & 0xf) + (value & 0xf) + carry > 9:
+                total += 6
+            if total > 0x99:
+                total += 96
+            cpu.set_status('carry', total > 0x99)
+        else:
+            cpu.set_status('carry', total > 0xff)
+
+        cpu.registers['a'].write(total)
+        cpu.set_status('zero', total)
+        cpu.set_status('negative', total)
+        cpu.set_status('overflow', (total != cpu.registers['a'].read()))
+
+        return None, 3
+
