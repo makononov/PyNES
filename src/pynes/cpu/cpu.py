@@ -95,11 +95,14 @@ class CPU(threading.Thread):
             else:
                 self._value ^= ~(1 << bitnum)
 
+        def increment(self, value=1):
+            self._value += value
 
     def __init__(self, console):
         self.memory = CPU.Memory(console)
         self.registers = {'pc': CPU.Register(np.uint16), 'a': CPU.Register(np.int8), 'x': CPU.Register(np.uint8),
                           'y': CPU.Register(np.uint8), 'sp': CPU.Register(np.uint8), 'p': CPU.Register(np.uint8)}
+        self.registers['p'].write(0b00100000)
         self._status_bits = {
             "carry": 0,
             "zero": 1,
@@ -116,92 +119,92 @@ class CPU(threading.Thread):
         self.IRQ.value = 'R' # Set reset IRQ
 
         self._opcodes = {
-            0x00: Instruction(self, Instruction.BRK, Instruction.AddressingMode.NONE),
-            0x01: Instruction(self, Instruction.ORA, Instruction.AddressingMode.INDIRECT_X),
-            0x05: Instruction(0x05, "ORA", addressing.ZEROPAGE, 3),
-            0x06: Instruction(0x06, "ASL", addressing.ZEROPAGE, 3),
+            0x00: Instruction(self, Instruction.BRK, Instruction.AddressingMode.NONE, 7),
+            0x01: Instruction(self, Instruction.ORA, Instruction.AddressingMode.INDIRECT_X, 6),
+            0x05: Instruction(self, Instruction.ORA, Instruction.AddressingMode.ZEROPAGE, 3),
+            0x06: Instruction(self, Instruction.ASL, Instruction.AddressingMode.ZEROPAGE, 3),
             0x08: Instruction(0x08, "PHP", addressing.NONE, 3),
-            0x09: Instruction(0x09, "ORA", addressing.IMMEDIATE, 2),
-            0x0a: Instruction(0x0a, "ASL", addressing.ACCUMULATOR, 2),
-            0x0d: Instruction(0x0d, "ORA", addressing.ABSOLUTE, 4),
-            0x0e: Instruction(0x0e, "ASL", addressing.ABSOLUTE, 6),
-            0x10: Instruction(0x10, "BPL", addressing.RELATIVE, 2),
-            0x11: Instruction(0x11, "ORA", addressing.INDIRECT_Y, 5),
-            0x15: Instruction(0x15, "ORA", addressing.ZEROPAGE_X, 4),
-            0x16: Instruction(0x16, "ASL", addressing.ZEROPAGE_X, 6),
-            0x18: Instruction(0x18, "CLC", addressing.NONE, 2),
-            0x19: Instruction(0x19, "ORA", addressing.ABSOLUTE_Y, 4),
-            0x1d: Instruction(0x1d, "ORA", addressing.ABSOLUTE_X, 4),
-            0x1e: Instruction(0x1e, "ASL", addressing.ABSOLUTE_X, 7),
+            0x09: Instruction(self, Instruction.ORA, Instruction.AddressingMode.IMMEDIATE, 2),
+            0x0a: Instruction(self, Instruction.ASL, Instruction.AddressingMode.ACCUMULATOR, 2),
+            0x0d: Instruction(self, Instruction.ORA, Instruction.AddressingMode.ABSOLUTE, 4),
+            0x0e: Instruction(self, Instruction.ASL, Instruction.AddressingMode.ABSOLUTE, 6),
+            0x10: Instruction(self, Instruction.BPL, Instruction.AddressingMode.RELATIVE, 2),
+            0x11: Instruction(self, Instruction.ORA, Instruction.AddressingMode.INDIRECT_Y, 5),
+            0x15: Instruction(self, Instruction.ORA, Instruction.AddressingMode.ZEROPAGE_X, 4),
+            0x16: Instruction(self, Instruction.ASL, Instruction.AddressingMode.ZEROPAGE_X, 6),
+            0x18: Instruction(self, Instruction.CLC, Instruction.AddressingMode.NONE, 2),
+            0x19: Instruction(self, Instruction.ORA, Instruction.AddressingMode.ABSOLUTE_Y, 4),
+            0x1d: Instruction(self, Instruction.ORA, Instruction.AddressingMode.ABSOLUTE_X, 4),
+            0x1e: Instruction(self, Instruction.ASL, Instruction.AddressingMode.ABSOLUTE_X, 7),
 
-            0x20: Instruction(0x20, "JSR", addressing.ABSOLUTE, 6),
-            0x21: Instruction(0x21, "AND", addressing.INDIRECT_X, 6),
-            0x24: Instruction(0x24, "BIT", addressing.ZEROPAGE, 3),
-            0x25: Instruction(0x25, "AND", addressing.ZEROPAGE, 3),
+            0x20: Instruction(self, Instruction.JSR, Instruction.AddressingMode.ABSOLUTE, 6),
+            0x21: Instruction(self, Instruction.AND, Instruction.AddressingMode.INDIRECT_X, 6),
+            0x24: Instruction(self, Instruction.BIT, Instruction.AddressingMode.ZEROPAGE, 3),
+            0x25: Instruction(self, Instruction.AND, Instruction.AddressingMode.ZEROPAGE, 3),
             0x26: Instruction(0x26, "ROL", addressing.ZEROPAGE, 5),
             0x28: Instruction(0x28, "PLP", addressing.NONE, 4),
-            0x29: Instruction(0x29, "AND", addressing.IMMEDIATE, 2),
+            0x29: Instruction(self, Instruction.AND, Instruction.AddressingMode.IMMEDIATE, 2),
             0x2a: Instruction(0x2a, "ROL", addressing.ACCUMULATOR, 2),
-            0x2c: Instruction(0x2c, "BIT", addressing.ABSOLUTE, 4),
-            0x2d: Instruction(0x2d, "AND", addressing.ABSOLUTE, 4),
+            0x2c: Instruction(self, Instruction.BIT, Instruction.AddressingMode.ABSOLUTE, 4),
+            0x2d: Instruction(self, Instruction.AND, Instruction.AddressingMode.ABSOLUTE, 4),
             0x2e: Instruction(0x2e, "ROL", addressing.ABSOLUTE, 6),
-            0x30: Instruction(0x30, "BMI", addressing.RELATIVE, 2),
-            0x31: Instruction(0x31, "AND", addressing.INDIRECT_Y, 5),
-            0x35: Instruction(0x35, "AND", addressing.ZEROPAGE_X, 6),
+            0x30: Instruction(self, Instruction.BMI, Instruction.AddressingMode.RELATIVE, 2),
+            0x31: Instruction(self, Instruction.AND, Instruction.AddressingMode.INDIRECT_Y, 5),
+            0x35: Instruction(self, Instruction.AND, Instruction.AddressingMode.ZEROPAGE_X, 6),
             0x36: Instruction(0x36, "ROL", addressing.ZEROPAGE_X, 6),
             0x38: Instruction(0x38, "SEC", addressing.NONE, 2),
-            0x39: Instruction(0x39, "AND", addressing.ABSOLUTE_Y, 4),
-            0x3d: Instruction(0x3d, "AND", addressing.ABSOLUTE_X, 4),
+            0x39: Instruction(self, Instruction.AND, Instruction.AddressingMode.ABSOLUTE_Y, 4),
+            0x3d: Instruction(self, Instruction.AND, Instruction.AddressingMode.ABSOLUTE_X, 4),
             0x3e: Instruction(0x3e, "ROL", addressing.ABSOLUTE_X, 7),
 
             0x40: Instruction(0x40, "RTI", addressing.NONE, 6),
-            0x41: Instruction(0x41, "EOR", addressing.INDIRECT_X, 6),
-            0x45: Instruction(0x45, "EOR", addressing.ZEROPAGE, 2),
+            0x41: Instruction(self, Instruction.EOR, Instruction.AddressingMode.INDIRECT_X, 6),
+            0x45: Instruction(self, Instruction.EOR, Instruction.AddressingMode.ZEROPAGE, 2),
             0x46: Instruction(0x46, "LSR", addressing.ZEROPAGE, 5),
             0x48: Instruction(0x48, "PHA", addressing.NONE, 3),
-            0x49: Instruction(0x49, "EOR", addressing.IMMEDIATE, 2),
+            0x49: Instruction(self, Instruction.EOR, Instruction.AddressingMode.IMMEDIATE, 2),
             0x4a: Instruction(0x4a, "LSR", addressing.ACCUMULATOR, 2),
-            0x4c: Instruction(0x4c, "JMP", addressing.ABSOLUTE, 3),
-            0x4d: Instruction(0x4d, "EOR", addressing.ABSOLUTE, 4),
+            0x4c: Instruction(self, Instruction.JMP, Instruction.AddressingMode.ABSOLUTE, 3),
+            0x4d: Instruction(self, Instruction.EOR, Instruction.AddressingMode.ABSOLUTE, 4),
             0x4e: Instruction(0x4e, "LSR", addressing.ABSOLUTE, 6),
-            0x50: Instruction(0x50, "BVC", addressing.RELATIVE, 2),
-            0x51: Instruction(0x51, "EOR", addressing.INDIRECT_Y, 5),
-            0x55: Instruction(0x55, "EOR", addressing.ZEROPAGE_X, 4),
+            0x50: Instruction(self, Instruction.BVC, Instruction.AddressingMode.RELATIVE, 2),
+            0x51: Instruction(self, Instruction.EOR, Instruction.AddressingMode.INDIRECT_Y, 5),
+            0x55: Instruction(self, Instruction.EOR, Instruction.AddressingMode.ZEROPAGE_X, 4),
             0x56: Instruction(0x56, "LSR", addressing.ZEROPAGE_X, 6),
-            0x58: Instruction(0x58, "CLI", addressing.NONE, 2),
-            0x59: Instruction(0x59, "EOR", addressing.ABSOLUTE_Y, 4),
-            0x5d: Instruction(0x5d, "EOR", addressing.ABSOLUTE_X, 4),
+            0x58: Instruction(self, Instruction.CLI, Instruction.AddressingMode.NONE, 2),
+            0x59: Instruction(self, Instruction.EOR, Instruction.AddressingMode.ABSOLUTE_Y, 4),
+            0x5d: Instruction(self, Instruction.EOR, Instruction.AddressingMode.ABSOLUTE_X, 4),
             0x5e: Instruction(0x5e, "LSR", addressing.ABSOLUTE_X, 7),
 
             0x60: Instruction(0x60, "RTS", addressing.NONE, 6),
-            0x61: Instruction(0x61, "ADC", addressing.INDIRECT_X, 6),
-            0x65: Instruction(0x65, "ADC", addressing.ZEROPAGE, 3),
+            0x61: Instruction(self, Instruction.ADC, Instruction.AddressingMode.INDIRECT_X, 6),
+            0x65: Instruction(self, Instruction.ADC, Instruction.AddressingMode.ZEROPAGE, 3),
             0x66: Instruction(0x66, "ROR", addressing.ZEROPAGE, 5),
             0x68: Instruction(0x68, "PLA", addressing.NONE, 4),
-            0x69: Instruction(0x69, "ADC", addressing.IMMEDIATE, 2),
+            0x69: Instruction(self, Instruction.ADC, Instruction.AddressingMode.IMMEDIATE, 2),
             0x6a: Instruction(0x6a, "ROR", addressing.ACCUMULATOR, 2),
-            0x6c: Instruction(0x6c, "JMP", addressing.INDIRECT, 5),
-            0x6d: Instruction(0x6d, "ADC", addressing.ABSOLUTE, 4),
+            0x6c: Instruction(self, Instruction.JMP, Instruction.AddressingMode.INDIRECT, 5),
+            0x6d: Instruction(self, Instruction.ADC, Instruction.AddressingMode.ABSOLUTE, 4),
             0x6e: Instruction(0x6e, "ROR", addressing.ABSOLUTE, 6),
-            0x70: Instruction(0x70, "BVS", addressing.RELATIVE, 2),
-            0x71: Instruction(0x71, "ADC", addressing.INDIRECT_Y, 5),
-            0x75: Instruction(0x75, "ADC", addressing.ZEROPAGE_X, 4),
+            0x70: Instruction(self, Instruction.BVS, Instruction.AddressingMode.RELATIVE, 2),
+            0x71: Instruction(self, Instruction.ADC, Instruction.AddressingMode.INDIRECT_Y, 5),
+            0x75: Instruction(self, Instruction.ADC, Instruction.AddressingMode.ZEROPAGE_X, 4),
             0x76: Instruction(0x76, "ROR", addressing.ZEROPAGE_X, 6),
             0x78: Instruction(0x78, "SEI", addressing.NONE, 2),
-            0x79: Instruction(0x79, "ADC", addressing.ABSOLUTE_Y, 4),
-            0x7d: Instruction(0x7d, "ADC", addressing.ABSOLUTE_X, 4),
+            0x79: Instruction(self, Instruction.ADC, Instruction.AddressingMode.ABSOLUTE_Y, 4),
+            0x7d: Instruction(self, Instruction.ADC, Instruction.AddressingMode.ABSOLUTE_X, 4),
             0x7e: Instruction(0x7e, "ROR", addressing.ABSOLUTE_X, 7),
 
             0x81: Instruction(0x81, "STA", addressing.INDIRECT_X, 6),
             0x84: Instruction(0x84, "STY", addressing.ZEROPAGE, 3),
             0x85: Instruction(0x85, "STA", addressing.ZEROPAGE, 3),
             0x86: Instruction(0x86, "STX", addressing.ZEROPAGE, 3),
-            0x88: Instruction(0x88, "DEY", addressing.NONE, 2),
+            0x88: Instruction(self, Instruction.DEY, Instruction.AddressingMode.NONE, 2),
             0x8a: Instruction(0x8a, "TXA", addressing.NONE, 2),
             0x8c: Instruction(0x8c, "STY", addressing.ABSOLUTE, 4),
             0x8d: Instruction(0x8d, "STA", addressing.ABSOLUTE, 4),
             0x8e: Instruction(0x8e, "STX", addressing.ABSOLUTE, 4),
-            0x90: Instruction(0x90, "BCC", addressing.RELATIVE, 2),
+            0x90: Instruction(self, Instruction.BCC, Instruction.AddressingMode.RELATIVE, 2),
             0x91: Instruction(0x91, "STA", addressing.INDIRECT_Y, 6),
             0x94: Instruction(0x94, "STY", addressing.ZEROPAGE_X, 4),
             0x95: Instruction(0x95, "STA", addressing.ZEROPAGE_X, 4),
@@ -211,77 +214,74 @@ class CPU(threading.Thread):
             0x9a: Instruction(0x9a, "TXS", addressing.NONE, 2),
             0x9d: Instruction(0x9d, "STA", addressing.ABSOLUTE_X, 5),
 
-            0xa0: Instruction(0xa0, "LDY", addressing.IMMEDIATE, 2),
-            0xa1: Instruction(0xa1, "LDA", addressing.INDIRECT_X, 6),
-            0xa2: Instruction(0xa2, "LDX", addressing.IMMEDIATE, 2),
-            0xa4: Instruction(0xa4, "LDY", addressing.ZEROPAGE, 3),
-            0xa5: Instruction(0xa5, "LDA", addressing.ZEROPAGE, 3),
-            0xa6: Instruction(0xa6, "LDX", addressing.ZEROPAGE, 3),
+            0xa0: Instruction(self, Instruction.LDY, Instruction.AddressingMode.IMMEDIATE, 2),
+            0xa1: Instruction(self, Instruction.LDA, Instruction.AddressingMode.INDIRECT_X, 6),
+            0xa2: Instruction(self, Instruction.LDX, Instruction.AddressingMode.IMMEDIATE, 2),
+            0xa4: Instruction(self, Instruction.LDY, Instruction.AddressingMode.ZEROPAGE, 3),
+            0xa5: Instruction(self, Instruction.LDA, Instruction.AddressingMode.ZEROPAGE, 3),
+            0xa6: Instruction(self, Instruction.LDX, Instruction.AddressingMode.ZEROPAGE, 3),
             0xa8: Instruction(0xa8, "TAY", addressing.NONE, 2),
-            0xa9: Instruction(0xa9, "LDA", addressing.IMMEDIATE, 2),
+            0xa9: Instruction(self, Instruction.LDA, Instruction.AddressingMode.IMMEDIATE, 2),
             0xaa: Instruction(0xaa, "TAX", addressing.NONE, 2),
-            0xac: Instruction(0xac, "LDY", addressing.ABSOLUTE, 4),
-            0xad: Instruction(0xad, "LDA", addressing.ABSOLUTE, 4),
-            0xae: Instruction(0xae, "LDX", addressing.ABSOLUTE, 4),
-            0xb0: Instruction(0xb0, "BCS", addressing.RELATIVE, 2),
-            0xb1: Instruction(0xb1, "LDA", addressing.INDIRECT_Y, 5),
-            0xb4: Instruction(0xb4, "LDY", addressing.ZEROPAGE_X, 4),
-            0xb5: Instruction(0xb5, "LDA", addressing.ZEROPAGE_X, 4),
-            0xb6: Instruction(0xb6, "LDX", addressing.ZEROPAGE_Y, 4),
-            0xb8: Instruction(0xb8, "CLV", addressing.NONE, 2),
-            0xb9: Instruction(0xb9, "LDA", addressing.ABSOLUTE_Y, 4),
+            0xac: Instruction(self, Instruction.LDY, Instruction.AddressingMode.ABSOLUTE, 4),
+            0xad: Instruction(self, Instruction.LDA, Instruction.AddressingMode.ABSOLUTE, 4),
+            0xae: Instruction(self, Instruction.LDX, Instruction.AddressingMode.ABSOLUTE, 4),
+            0xb0: Instruction(self, Instruction.BCS, Instruction.AddressingMode.RELATIVE, 2),
+            0xb1: Instruction(self, Instruction.LDA, Instruction.AddressingMode.INDIRECT_Y, 5),
+            0xb4: Instruction(self, Instruction.LDY, Instruction.AddressingMode.ZEROPAGE_X, 4),
+            0xb5: Instruction(self, Instruction.LDA, Instruction.AddressingMode.ZEROPAGE_X, 4),
+            0xb6: Instruction(self, Instruction.LDX, Instruction.AddressingMode.ZEROPAGE_Y, 4),
+            0xb8: Instruction(self, Instruction.CLV, Instruction.AddressingMode.NONE, 2),
+            0xb9: Instruction(self, Instruction.LDA, Instruction.AddressingMode.ABSOLUTE_Y, 4),
             0xba: Instruction(0xba, "TSX", addressing.NONE, 2),
-            0xbc: Instruction(0xbc, "LDY", addressing.ABSOLUTE_X, 4),
-            0xbd: Instruction(0xbd, "LDA", addressing.ABSOLUTE_X, 4),
-            0xbe: Instruction(0xbe, "LDX", addressing.ABSOLUTE_Y, 4),
+            0xbc: Instruction(self, Instruction.LDY, Instruction.AddressingMode.ABSOLUTE_X, 4),
+            0xbd: Instruction(self, Instruction.LDA, Instruction.AddressingMode.ABSOLUTE_X, 4),
+            0xbe: Instruction(self, Instruction.LDX, Instruction.AddressingMode.ABSOLUTE_Y, 4),
 
-            0xc0: Instruction(0xc0, "CPY", addressing.IMMEDIATE, 2),
-            0xc1: Instruction(0xc1, "CMP", addressing.INDIRECT_X, 6),
-            0xc4: Instruction(0xc4, "CPY", addressing.ZEROPAGE, 3),
-            0xc5: Instruction(0xc5, "CMP", addressing.ZEROPAGE, 3),
-            0xc6: Instruction(0xc6, "DEC", addressing.ZEROPAGE, 5),
-            0xc8: Instruction(0xc8, "INY", addressing.NONE, 2),
-            0xc9: Instruction(0xc9, "CMP", addressing.IMMEDIATE, 2),
-            0xca: Instruction(0xca, "DEX", addressing.NONE, 2),
-            0xcc: Instruction(0xcc, "CPY", addressing.ABSOLUTE, 4),
-            0xcd: Instruction(0xcd, "CMP", addressing.ABSOLUTE, 4),
-            0xce: Instruction(0xce, "DEC", addressing.ABSOLUTE, 6),
-            0xd0: Instruction(0xd0, "BNE", addressing.RELATIVE, 2),
-            0xd1: Instruction(0xd1, "CMP", addressing.INDIRECT_Y, 5),
-            0xd5: Instruction(0xd5, "CMP", addressing.ZEROPAGE_X, 4),
-            0xd6: Instruction(0xd6, "DEC", addressing.ZEROPAGE_X, 6),
-            0xd8: Instruction(0xd8, "CLD", addressing.NONE, 2),
-            0xd9: Instruction(0xd9, "CMP", addressing.ABSOLUTE_Y, 4),
-            0xdd: Instruction(0xdd, "CMP", addressing.ABSOLUTE_X, 4),
-            0xde: Instruction(0xde, "DEC", addressing.ABSOLUTE_X, 7),
+            0xc0: Instruction(self, Instruction.CPY, Instruction.AddressingMode.IMMEDIATE, 2),
+            0xc1: Instruction(self, Instruction.CMP, Instruction.AddressingMode.INDIRECT_X, 6),
+            0xc4: Instruction(self, Instruction.CPY, Instruction.AddressingMode.ZEROPAGE, 3),
+            0xc5: Instruction(self, Instruction.CMP, Instruction.AddressingMode.ZEROPAGE, 3),
+            0xc6: Instruction(self, Instruction.DEC, Instruction.AddressingMode.ZEROPAGE, 5),
+            0xc8: Instruction(self, Instruction.INY, Instruction.AddressingMode.NONE, 2),
+            0xc9: Instruction(self, Instruction.CMP, Instruction.AddressingMode.IMMEDIATE, 2),
+            0xca: Instruction(self, Instruction.DEX, Instruction.AddressingMode.NONE, 2),
+            0xcc: Instruction(self, Instruction.CPY, Instruction.AddressingMode.ABSOLUTE, 4),
+            0xcd: Instruction(self, Instruction.CMP, Instruction.AddressingMode.ABSOLUTE, 4),
+            0xce: Instruction(self, Instruction.DEC, Instruction.AddressingMode.ABSOLUTE, 6),
+            0xd0: Instruction(self, Instruction.BNE, Instruction.AddressingMode.RELATIVE, 2),
+            0xd1: Instruction(self, Instruction.CMP, Instruction.AddressingMode.INDIRECT_Y, 5),
+            0xd5: Instruction(self, Instruction.CMP, Instruction.AddressingMode.ZEROPAGE_X, 4),
+            0xd6: Instruction(self, Instruction.DEC, Instruction.AddressingMode.ZEROPAGE_X, 6),
+            0xd8: Instruction(self, Instruction.CLD, Instruction.AddressingMode.NONE, 2),
+            0xd9: Instruction(self, Instruction.CMP, Instruction.AddressingMode.ABSOLUTE_Y, 4),
+            0xdd: Instruction(self, Instruction.CMP, Instruction.AddressingMode.ABSOLUTE_X, 4),
+            0xde: Instruction(self, Instruction.DEC, Instruction.AddressingMode.BSOLUTE_X, 7),
 
-            0xe0: Instruction(0xe0, "CPX", addressing.IMMEDIATE, 2),
+            0xe0: Instruction(self, Instruction.CPX, Instruction.AddressingMode.IMMEDIATE, 2),
             0xe1: Instruction(0xe1, "SBC", addressing.INDIRECT_X, 6),
-            0xe4: Instruction(0xe4, "CPX", addressing.ZEROPAGE, 3),
+            0xe4: Instruction(self, Instruction.CPX, Instruction.AddressingMode.ZEROPAGE, 3),
             0xe5: Instruction(0xe5, "SBC", addressing.ZEROPAGE, 3),
-            0xe6: Instruction(0xe6, "INC", addressing.ZEROPAGE, 5),
-            0xe8: Instruction(0xe8, "INX", addressing.NONE, 2),
+            0xe6: Instruction(self, Instruction.INC, Instruction.AddressingMode.ZEROPAGE, 5),
+            0xe8: Instruction(self, Instruction.INX, Instruction.AddressingMode.NONE, 2),
             0xe9: Instruction(0xe9, "SBC", addressing.IMMEDIATE, 2),
             0xea: Instruction(0xea, "NOP", addressing.NONE, 2),
-            0xec: Instruction(0xec, "CPX", addressing.ABSOLUTE, 4),
+            0xec: Instruction(self, Instruction.CPX, Instruction.AddressingMode.ABSOLUTE, 4),
             0xed: Instruction(0xed, "SBC", addressing.ABSOLUTE, 4),
-            0xee: Instruction(0xee, "INC", addressing.ABSOLUTE, 6),
-            0xf0: Instruction(0xf0, "BEQ", addressing.RELATIVE, 2),
+            0xee: Instruction(self, Instruction.INC, Instruction.AddressingMode.ABSOLUTE, 6),
+            0xf0: Instruction(self, Instruction.BEQ, Instruction.AddressingMode.RELATIVE, 2),
             0xf1: Instruction(0xf1, "SBC", addressing.INDIRECT_Y, 5),
             0xf5: Instruction(0xf5, "SBC", addressing.ZEROPAGE_X, 4),
-            0xf6: Instruction(0xf6, "INC", addressing.ZEROPAGE_X, 6),
+            0xf6: Instruction(self, Instruction.INC, Instruction.AddressingMode.ZEROPAGE_X, 6),
             0xf8: Instruction(0xf8, "SED", addressing.NONE, 2),
             0xf9: Instruction(0xf9, "SBC", addressing.ABSOLUTE_Y, 4),
             0xfd: Instruction(0xfd, "SBC", addressing.ABSOLUTE_X, 4),
-            0xfe: Instruction(0xfe, "INC", addressing.ABSOLUTE_X, 7)
+            0xfe: Instruction(self, Instruction.INC, Instruction.AddressingMode.ABSOLUTE_X, 7)
         }
 
         super(CPU, self).__init__()
 
-
     def set_status(self, status, value):
-        p = self.registers['p'].read()
-
         if status == "zero":
             self.registers['p'].set_bit(1, value == 0)
         elif status == "negative":
@@ -289,11 +289,22 @@ class CPU(threading.Thread):
         else:
             self.registers['p'].set_bit(self._status_bits[status], value)
 
-
     def get_status(self, status):
         bitnum = self._status_bits[status]
         return bool(self.registers['p'].read() & (1 << bitnum))
 
+    def execute(self, mem):
+        code = mem[0]
+        return self._opcodes[code](mem[1:3])
+
+    def stack_push(self, value):
+        self.registers['sp'].increment(value=-1)
+        self.memory.write(0x100 + self.registers['sp'].read(), value)
+
+    def stack_pop(self, value):
+        val = self.memory.read(0x100 + self.registers['sp'].read())
+        self.registers['sp'].increment()
+        return val
 
     def run(self):
         while True:
@@ -304,12 +315,16 @@ class CPU(threading.Thread):
                     self.registers['pc'].write(self.memory.read(0xfffb) << 8 + self.memory.read(0xfffa))
                 elif self.IRQ.value == 'R': # Reset
                     self.registers['pc'].write((self.memory.read(0xfffd) << 8) + self.memory.read(0xfffc))
-                elif self.IRQ.value == 'I' and not self.status.irqdis: # Maskable Interrupt
+                elif self.IRQ.value == 'I' and not self.get_status('interrupt'): # Maskable Interrupt
+                    self.set_status('interrupt', True)
                     self.registers['pc'].write((self.memory.read(0xffff) << 8) + self.memory.read(0xfffe))
+
+                # Clear the IRQ
+                self.IRQ.value = None
 
             # Fetch the next instruction, execute it, update PC and cycle counter.
             pc = self.registers['pc'].read()
-            increment_pc, increment_cycles = CPU.execute(self._cart['prg_rom'][pc:pc + 4])
+            increment_cycles = CPU.execute(self._cart['prg_rom'][pc:pc + 4])
             self.registers['pc'].write(pc + increment_pc)
             with self.CycleLock:
                 self.Cycles += increment_cycles;
