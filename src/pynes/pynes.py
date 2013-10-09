@@ -13,11 +13,12 @@ def init():
     log.setLevel(logging.DEBUG)
 
     window.set_size(512, 448)
-    window.set_visible()
 
     cartridge = Cartridge("../../test/tetris.nes")
     console = Console(cartridge)
     console.boot()
+
+    window.set_visible(True)
 
 
 @window.event

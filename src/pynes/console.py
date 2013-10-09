@@ -1,7 +1,6 @@
-from cpu import CPU
-import multiprocessing
-
 __author__ = 'misha'
+
+from cpu import CPU
 
 
 class Console:
