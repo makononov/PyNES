@@ -19,7 +19,7 @@ class CPU(threading.Thread):
             self._ram = [0] * 0xffff
 
         def write(self, address, value):
-            log.debug("Memory write to address {0:#4x}".format(address))
+            # log.debug("Memory write to address {0:#4x}".format(address))
             if address < 0 or address > 0xffff:
                 raise Exception("Memory write out of bounds: {0x:#4x}".format(address))
 
@@ -54,7 +54,7 @@ class CPU(threading.Thread):
                 raise Exception("Unhandled memory write to address {0:#4x}".format(address))
 
         def read(self, address):
-            log.debug("Memory read from address {0:#4x}".format(address))
+            # log.debug("Memory read from address {0:#4x}".format(address))
             if address < 0 or address > 0xffff:
                 raise Exception("Memory read out of bounds: {0:#4x}".format(address))
 
