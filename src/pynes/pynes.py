@@ -2,14 +2,18 @@ import pyglet
 from cartridge import Cartridge
 from console import Console
 import logging
+from utils import ColorFormatter
 import sys
 
 window = pyglet.window.Window(visible=False)
 
 
 def init():
-    logging.basicConfig(stream=sys.stderr)
+    FORMAT = "[$BOLD%(name)s$RESET][%(levelname)-8s]  $COLOR%(message)s$RESET ($BOLD%(filename)s$RESET:%(lineno)d)"
+    shandler = logging.StreamHandler()
+    shandler.setFormatter(ColorFormatter(FORMAT))
     log = logging.getLogger('PyNES')
+    log.addHandler(shandler)
     log.setLevel(logging.DEBUG)
 
     window.set_size(512, 448)
