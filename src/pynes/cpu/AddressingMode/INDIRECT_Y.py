@@ -1,6 +1,6 @@
 __author__ = 'misha'
 
-size = 2
+size = 1
 
 
 def read(cpu, param):
@@ -13,3 +13,7 @@ def write(cpu, param, value):
     address = cpu.memory.read(param)
     address += (cpu.memory.read(param + 1) << 8)
     cpu.memory.write(address + cpu.registers['y'].read(), value)
+
+
+def print(param):
+    return "({0:#04x}),Y".format(param)

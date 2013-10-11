@@ -70,3 +70,6 @@ class Cartridge:
             self.mapper = MMC1(self)
         else:
             raise Exception("Memory mapper ID #" + str(self._mapper_id) + " not yet implemented.")
+
+    def mem_write(self, address, value):
+        self.mapper.mem_write(address, value)

@@ -11,3 +11,7 @@ def read(cpu, param):
 def write(cpu, param, value):
     address = param + cpu.registers['y'].read()
     cpu.memory.write(address, value)
+
+
+def print(param):
+    return "{0:#04x},Y".format(param)

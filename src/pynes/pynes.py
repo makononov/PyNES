@@ -6,6 +6,7 @@ from utils import ColorFormatter
 import sys
 
 window = pyglet.window.Window(visible=False)
+console = None
 
 
 def init():
@@ -27,8 +28,7 @@ def init():
 
 @window.event
 def on_draw():
-    pass
-
+    window.clear()
 
 if __name__ == "__main__":
     init()

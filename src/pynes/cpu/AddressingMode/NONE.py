@@ -5,3 +5,7 @@ size = 0
 
 def read(cpu, *args):
     return None, 0
+
+
+def print(param):
+    return ""

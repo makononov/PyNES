@@ -29,7 +29,15 @@ class CPU(threading.Thread):
                 self._ram[base_address] = np.uint8(value)
 
             elif 0x2000 <= address < 0x4000:
-                self._console.PPU.write(address, value)
+                 # PPU Registers
+                address -= 0x2000
+                base = address % 8
+                if base == 0:
+                    self._console.PPU.update_control_1(value)
+                elif base == 1:
+                    self._console.PPU.update_control_2(value)
+                else:
+                    log.debug("Unhandled I/O register read: {0:#4x}".format(address))
 
             elif 0x4000 <= address < 0x4014 or address == 0x4015:
                 # pAPU registers
@@ -64,7 +72,7 @@ class CPU(threading.Thread):
                 return np.uint8(self._ram[base_address])
 
             elif 0x2000 <= address < 0x4000:
-                # I/O Registers
+                # PPU Registers
                 address -= 0x2000
                 base = address % 8
                 if base == 2:
@@ -90,13 +98,13 @@ class CPU(threading.Thread):
             self._value = self._dtype(value)
 
         def read(self):
-            return self._value
+            return self._dtype(self._value)
 
         def set_bit(self, bitnum, isset):
             if isset:
                 self._value |= (1 << bitnum)
             else:
-                self._value ^= ~(1 << bitnum)
+                self._value ^= ~(1 << bitnum & 0xff)
 
         def increment(self, value=1):
             self._value += value
@@ -112,11 +120,12 @@ class CPU(threading.Thread):
             param = 0
             for i in range(0, self._admode.size):
                 param += mem[i] << (8 * i)
+            log.debug("{2:#06x}: {0} {1}".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read()))
             value, adcycles = self._admode.read(self._cpu, param)
             self._cpu.registers['pc'].increment(value=1 + self._admode.size)
             fn_value, fncycles = self._fn(self._cpu, value)
             if fn_value is not None:
-                self._admode.write(self._cpu, fn_value)
+                self._admode.write(self._cpu, param, fn_value)
 
             return self._cycles + adcycles + fncycles
 
@@ -320,8 +329,6 @@ class CPU(threading.Thread):
         code = mem[0]
         try:
             return self._opcodes[code](mem[1:3])
-        except KeyError:
-            raise Exception("Invalid opcode at {0:#4x}: {1:#4x}".format(self.registers['pc'].read(), code))
         except:
             log.critical("Exception while executing: {0:#06x}: {1}".format(self.registers['pc'].read(), ["{0:#04x}".format(x) for x in mem]))
             for register_name in self.registers:

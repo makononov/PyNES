@@ -336,7 +336,7 @@ def JSR(cpu, value):
     """
     Jump to a location in memory and store the return address on the stack
     """
-    pc = cpu.registers['pc'].read() - 1
+    pc = cpu.registers['pc'].read() - 3
     cpu.stack_push((pc >> 8) & 0xff)
     cpu.stack_push(pc & 0xff)
     cpu.registers['pc'].write(value)

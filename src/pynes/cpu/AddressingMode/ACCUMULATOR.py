@@ -9,3 +9,7 @@ def read(cpu):
 
 def write(cpu, param, value):
     cpu.registers['a'].write(value)
+
+
+def print(param):
+    return "A"
