@@ -78,6 +78,8 @@ class PPU(threading.Thread):
         log.debug('PPU: Initializing PPU...')
 
         self.memory = PPU.Memory(console)
+        self._console = console
+        self.VBLANK_LOCK = threading.Condition()
         self._palette = [(0x75, 0x75, 0x75),
                          (0x27, 0x1b, 0x8f),
                          (0x00, 0x00, 0xab),
@@ -159,7 +161,8 @@ class PPU(threading.Thread):
         self.accept_vram_writes = True
         self.scanline_sprite_count = 0
         self.sprite_0_hit = False
-        self.vblank = False
+        self.vblank = False  # Status flag, cleared when status is read
+        self._vblank = False  # Used to accurately reset cycle counter
 
         self.spr_ram_addr = 0
         self.vram_addr = 0
@@ -223,6 +226,25 @@ class PPU(threading.Thread):
 
         return value
 
+    def enter_vblank(self):
+        log.debug("**** VBLANK ****")
+        self._vblank = True
+        self.vblank = True
+
+    def exit_vblank(self):
+        self._vblank = False
+        self.vblank = False
+
     def run(self):
+        log.info("PPU loop starting...")
         while True:
-            pass
+            # TODO: Check for non-VBLANK writes
+            # TODO: Generate frame
+            self.VBLANK_LOCK.wait()
+            with self._console.CPU.CycleLock:
+                if self._console.CPU.Cycles.value >= 27426 and not self._vblank:
+                    self.enter_vblank()
+                elif self._console.CPU.Cycles.value >= 29692:
+                    self.exit_vblank()
+                    self._console.CPU.Cycles.value = 0
+

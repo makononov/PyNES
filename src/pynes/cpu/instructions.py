@@ -57,10 +57,11 @@ def BCC(cpu, offset):
     """
     extra_cycle = 0
     if cpu.get_status('carry') is not True:
+        extra_cycle = 1
         pc = cpu.registers['pc'].read()
         # Add an extra cycle if going across pages
         if (pc * 0xff00) != (pc + offset & 0xff00):
-            extra_cycle = 1
+            extra_cycle += 1
         cpu.registers['pc'].increment(value=offset)
     return None, extra_cycle
 
@@ -71,10 +72,11 @@ def BCS(cpu, offset):
     """
     extra_cycle = 0
     if cpu.get_status('carry') is True:
+        extra_cycle = 1
         pc = cpu.registers['pc'].read()
         # Add an extra cycle if going across pages
         if (pc * 0xff00) != (pc + offset & 0xff00):
-            extra_cycle = 1
+            extra_cycle += 1
         cpu.registers['pc'].increment(value=offset)
     return None, extra_cycle
 
@@ -85,11 +87,12 @@ def BEQ(cpu, offset):
     """
     extra_cycle = 0
     if cpu.get_status('zero') is True:
-        pc = cpu.regisers['pc'].read()
+        extra_cycle = 1
+        pc = cpu.registers['pc'].read()
         # Add an extra cycle if going across pages
         if (pc * 0xff00) != (pc + offset & 0xff00):
-            extra_cycle = 1
-        cpu.regisers['pc'].increment(value=offset)
+            extra_cycle += 1
+        cpu.registers['pc'].increment(value=offset)
     return None, extra_cycle
 
 
@@ -110,10 +113,11 @@ def BMI(cpu, offset):
     """
     extra_cycle = 0
     if cpu.get_status('negative') is True:
+        extra_cycle = 1
         pc = cpu.registers['pc'].read()
         # Add an extra cycle if going across pages
         if (pc * 0xff00) != (pc + offset & 0xff00):
-            extra_cycle = 1
+            extra_cycle += 1
         cpu.registers['pc'].increment(value=offset)
     return None, extra_cycle
 
@@ -124,11 +128,12 @@ def BNE(cpu, offset):
     """
     extra_cycle = 0
     if cpu.get_status('zero') is False:
-        pc = cpu.regisers['pc'].read()
+        extra_cycle = 1
+        pc = cpu.registers['pc'].read()
         # Add an extra cycle if going across pages
         if (pc * 0xff00) != (pc + offset & 0xff00):
-            extra_cycle = 1
-        cpu.regisers['pc'].increment(value=offset)
+            extra_cycle += 1
+        cpu.registers['pc'].increment(value=offset)
     return None, extra_cycle
 
 
@@ -138,10 +143,11 @@ def BPL(cpu, offset):
     """
     extra_cycle = 0
     if cpu.get_status('negative') is False:
+        extra_cycle = 1
         pc = cpu.registers['pc'].read()
         # Add an extra cycle if going across pages
         if (pc * 0xff00) != (pc + offset & 0xff00):
-            extra_cycle = 1
+            extra_cycle += 1
         cpu.registers['pc'].increment(value=offset)
     return None, extra_cycle
 
@@ -160,10 +166,11 @@ def BVC(cpu, offset):
     """
     extra_cycle = 0
     if cpu.get_status('overflow') is False:
+        extra_cycle = 1
         pc = cpu.registers['pc'].read()
         # Add an extra cycle if going across pages
         if (pc * 0xff00) != (pc + offset & 0xff00):
-            extra_cycle = 1
+            extra_cycle += 1
         cpu.registers['pc'].increment(value=offset)
     return None, extra_cycle
 
@@ -174,10 +181,11 @@ def BVS(cpu, offset):
     """
     extra_cycle = 0
     if cpu.get_status('overflow') is True:
+        extra_cycle = 1
         pc = cpu.registers['pc'].read()
         # Add an extra cycle if going across pages
         if (pc * 0xff00) != (pc + offset & 0xff00):
-            extra_cycle = 1
+            extra_cycle += 1
         cpu.registers['pc'].increment(value=offset)
     return None, extra_cycle
 

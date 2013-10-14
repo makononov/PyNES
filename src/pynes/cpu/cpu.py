@@ -104,10 +104,10 @@ class CPU(threading.Thread):
             if isset:
                 self._value |= (1 << bitnum)
             else:
-                self._value ^= ~(1 << bitnum & 0xff)
+                self._value &= ~(1 << bitnum)
 
         def increment(self, value=1):
-            self._value += value
+            self._value = self._dtype(value + self._value)
 
     class Instruction:
         def __init__(self, cpu, fn, addressing, base_cycles):
@@ -120,8 +120,8 @@ class CPU(threading.Thread):
             param = 0
             for i in range(0, self._admode.size):
                 param += mem[i] << (8 * i)
-            log.debug("{2:#06x}: {0} {1}".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read()))
             value, adcycles = self._admode.read(self._cpu, param)
+            # log.debug("{2:#06x}: {0} {1}(cycles: {3})".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read(), self._cpu.Cycles.value))
             self._cpu.registers['pc'].increment(value=1 + self._admode.size)
             fn_value, fncycles = self._fn(self._cpu, value)
             if fn_value is not None:
@@ -130,6 +130,7 @@ class CPU(threading.Thread):
             return self._cycles + adcycles + fncycles
 
     def __init__(self, console):
+        self._console = console
         self.memory = CPU.Memory(console)
         self.registers = {'pc': CPU.Register(np.uint16), 'a': CPU.Register(np.int8), 'x': CPU.Register(np.uint8),
                           'y': CPU.Register(np.uint8), 'sp': CPU.Register(np.uint8), 'p': CPU.Register(np.uint8)}
@@ -317,7 +318,7 @@ class CPU(threading.Thread):
         if status == "zero":
             self.registers['p'].set_bit(1, value == 0)
         elif status == "negative":
-            self.registers['p'].set_bit(7, value < 0)
+            self.registers['p'].set_bit(7, value & (1 << 7))
         else:
             self.registers['p'].set_bit(self._status_bits[status], value)
 
@@ -371,3 +372,5 @@ class CPU(threading.Thread):
             increment_cycles = self.execute(self._cart.prg_rom[pc:pc+3])
             with self.CycleLock:
                 self.Cycles.value += increment_cycles
+                if self.Cycles.value >= 27426:
+                    self._console.PPU.VBLANK_LOCK.notify()

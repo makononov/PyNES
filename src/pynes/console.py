@@ -3,7 +3,6 @@ __author__ = 'misha'
 from cpu import CPU
 from ppu import PPU
 
-
 class Console:
     def __init__(self, cart):
         self.Cart = cart
