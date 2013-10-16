@@ -1,10 +1,11 @@
-__author__ = 'misha'
-
+"""
+Zeropage absolute addressing
+"""
 size = 1
 
 
 def read(cpu, param):
-    return cpu.memory.read(param), 0
+    return cpu.memory.read(param)
 
 
 def write(cpu, param, value):

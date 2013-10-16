@@ -1,10 +1,11 @@
-__author__ = 'misha'
-
+"""
+Immediate addressing
+"""
 size = 1
 
 
 def read(cpu, param):
-    return param, 0
+    return param
 
 
 def print(param):

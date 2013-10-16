@@ -1,10 +1,11 @@
-__author__ = 'misha'
-
+"""
+Indexed absolute addressing with X-Register
+"""
 size = 2
 
 
 def read(cpu, param):
-    return cpu.memory.read(param + cpu.registers['x'].read()), 0
+    return cpu.memory.read(param + cpu.registers['x'].read())
 
 
 def write(cpu, param, value):

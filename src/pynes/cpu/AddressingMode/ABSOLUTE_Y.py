@@ -1,10 +1,11 @@
-__author__ = 'misha'
-
+"""
+Indexed addressing with Y-Register
+"""
 size = 2
 
 
 def read(cpu, param):
-    return cpu.memory.read(param + cpu.registers['y'].read()), 0
+    return cpu.memory.read(param + cpu.registers['y'].read())
 
 
 def write(cpu, param, value):

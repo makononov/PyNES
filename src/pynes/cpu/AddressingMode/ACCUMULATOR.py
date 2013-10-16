@@ -1,10 +1,11 @@
-__author__ = 'misha'
-
+"""
+Accumulator based addressing
+"""
 size = 0
 
 
 def read(cpu, *args):
-    return cpu.registers['a'].read(), 0
+    return cpu.registers['a'].read()
 
 
 def write(cpu, param, value):

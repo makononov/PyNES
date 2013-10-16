@@ -1,11 +1,12 @@
-__author__ = 'misha'
-
+"""
+Zero-page indexed addressing with X-Register
+"""
 size = 1
 
 
 def read(cpu, param):
     address = param + cpu.registers['x'].read()
-    return cpu.memory.read(address), 0
+    return cpu.memory.read(address)
 
 
 def write(cpu, param, value):

@@ -5,10 +5,11 @@ __author__ = 'misha'
 log = logging.getLogger("PyNES")
 
 
-def ADC(cpu, value):
+def ADC(cpu, source):
     """
     Add value to A with carry
     """
+    value = source()
     carry = int(cpu.get_status('carry'))
     total = value + cpu.registers['a'].read() + carry
     cpu.set_status('zero', total & 0xff)
@@ -29,10 +30,11 @@ def ADC(cpu, value):
     return None, 0
 
 
-def AND(cpu, value):
+def AND(cpu, source):
     """
     'AND' memory with Accumulator
     """
+    value = source()
     value &= cpu.registers['a'].read()
     cpu.set_status('negative', value)
     cpu.set_status('zero', value)
@@ -40,10 +42,11 @@ def AND(cpu, value):
     return None, 0
 
 
-def ASL(cpu, value):
+def ASL(cpu, source):
     """
     Shift left one bit
     """
+    value = source()
     cpu.set_status('carry', bool(value & 0x80))
     value = (value << 1) & 0xff
     cpu.set_status('negative', value)
@@ -51,10 +54,11 @@ def ASL(cpu, value):
     return value, 0
 
 
-def BCC(cpu, offset):
+def BCC(cpu, source):
     """
     Branch if carry flag is *not* set
     """
+    offset = source()
     extra_cycle = 0
     if cpu.get_status('carry') is not True:
         extra_cycle = 1
@@ -66,10 +70,11 @@ def BCC(cpu, offset):
     return None, extra_cycle
 
 
-def BCS(cpu, offset):
+def BCS(cpu, source):
     """
     Branch if carry flag is set
     """
+    offset = source()
     extra_cycle = 0
     if cpu.get_status('carry') is True:
         extra_cycle = 1
@@ -81,10 +86,11 @@ def BCS(cpu, offset):
     return None, extra_cycle
 
 
-def BEQ(cpu, offset):
+def BEQ(cpu, source):
     """
     Branch if result was zero
     """
+    offset = source()
     extra_cycle = 0
     if cpu.get_status('zero') is True:
         extra_cycle = 1
@@ -96,20 +102,22 @@ def BEQ(cpu, offset):
     return None, extra_cycle
 
 
-def BIT(cpu, value):
+def BIT(cpu, source):
     """
     Compare bits
     """
+    value = source()
     cpu.set_status('negative', value)
     cpu.set_status('overflow', value & 0x40)
     cpu.set_status('zero', value & cpu.registers['a'].read())
     return None, 0
 
 
-def BMI(cpu, offset):
+def BMI(cpu, source):
     """
     Branch if result was negative
     """
+    offset = source()
     extra_cycle = 0
     if cpu.get_status('negative') is True:
         extra_cycle = 1
@@ -121,10 +129,11 @@ def BMI(cpu, offset):
     return None, extra_cycle
 
 
-def BNE(cpu, offset):
+def BNE(cpu, source):
     """
     Branch if result was *not* zero
     """
+    offset = source()
     extra_cycle = 0
     if cpu.get_status('zero') is False:
         extra_cycle = 1
@@ -136,10 +145,11 @@ def BNE(cpu, offset):
     return None, extra_cycle
 
 
-def BPL(cpu, offset):
+def BPL(cpu, source):
     """
     Branch if result was positive
     """
+    offset = source()
     extra_cycle = 0
     if cpu.get_status('negative') is False:
         extra_cycle = 1
@@ -159,10 +169,11 @@ def BRK(cpu, *args):
     cpu.IRQ.value = "I"
 
 
-def BVC(cpu, offset):
+def BVC(cpu, source):
     """
     Branch if overflow flag is *not* set
     """
+    offset = source()
     extra_cycle = 0
     if cpu.get_status('overflow') is False:
         extra_cycle = 1
@@ -174,10 +185,11 @@ def BVC(cpu, offset):
     return None, extra_cycle
 
 
-def BVS(cpu, offset):
+def BVS(cpu, source):
     """
     Branch if overflow flag is set
     """
+    offset = source()
     extra_cycle = 0
     if cpu.get_status('overflow') is True:
         extra_cycle = 1
@@ -221,44 +233,44 @@ def CLV(cpu, *args):
     return None, 0
 
 
-def CMP(cpu, value):
+def CMP(cpu, source):
     """
     Compare accumulator with value
     """
-    comp = cpu.registers['a'].read() - value
+    comp = cpu.registers['a'].read() - source()
     cpu.set_status('carry', (comp < 0x100))
     cpu.set_status('negative', comp)
     cpu.set_status('zero', comp & 0xff)
     return None, 0
 
 
-def CPX(cpu, value):
+def CPX(cpu, source):
     """
     Compare X-register with value
     """
-    comp = cpu.registers['x'].read() - value
+    comp = cpu.registers['x'].read() - source()
     cpu.set_status('carry', (comp < 0x100))
     cpu.set_status('negative', comp)
     cpu.set_status('zero', comp & 0xff)
     return None, 0
 
 
-def CPY(cpu, value):
+def CPY(cpu, source):
     """
     Compare Y-register with value
     """
-    comp = cpu.registers['y'].read() - value
+    comp = cpu.registers['y'].read() - source()
     cpu.set_status('carry', (comp < 0x100))
     cpu.set_status('negative', comp)
     cpu.set_status('zero', comp & 0xff)
     return None, 0
 
 
-def DEC(cpu, value):
+def DEC(cpu, source):
     """
     Decrement memory
     """
-    value = (value - 1) & 0xff
+    value = (source() - 1) & 0xff
     cpu.set_status('negative', value)
     cpu.set_status('zero', value)
     return value, 0
@@ -286,22 +298,22 @@ def DEY(cpu, *args):
     return None, 0
 
 
-def EOR(cpu, value):
+def EOR(cpu, source):
     """
     XOR value with accumulator
     """
-    value ^= cpu.registers['a'].read()
+    value = source() ^ cpu.registers['a'].read()
     cpu.set_status('negative', value)
     cpu.set_status('zero', value)
     cpu.registers['a'].write(value)
     return None, 0
 
 
-def INC(cpu, value):
+def INC(cpu, source):
     """
     Increment memory
     """
-    value = (value + 1) & 0xff
+    value = (source() + 1) & 0xff
     cpu.set_status('negative', value)
     cpu.set_status('zero', value)
     return value, 0
@@ -331,59 +343,63 @@ def INY(cpu, *args):
     return None, 0
 
 
-def JMP(cpu, value):
+def JMP(cpu, source):
     """
     Jump to a location in memory
     """
-    cpu.registers['pc'].write(value)
+    cpu.registers['pc'].write(source())
     return None, 0
 
 
-def JSR(cpu, value):
+def JSR(cpu, source):
     """
     Jump to a location in memory and store the return address on the stack
     """
     pc = cpu.registers['pc'].read()
     cpu.stack_push((pc >> 8) & 0xff)
     cpu.stack_push(pc & 0xff)
-    cpu.registers['pc'].write(value)
+    cpu.registers['pc'].write(source())
     return None, 0
 
 
-def LDA(cpu, value):
+def LDA(cpu, source):
     """
     Load a value into the accumulator
     """
+    value = source()
     cpu.set_status('negative', value)
     cpu.set_status('zero', value)
     cpu.registers['a'].write(value)
     return None, 0
 
 
-def LDX(cpu, value):
+def LDX(cpu, source):
     """
     Load a value into the X-register
     """
+    value = source()
     cpu.set_status('negative', value)
     cpu.set_status('zero', value)
     cpu.registers['x'].write(value)
     return None, 0
 
 
-def LDY(cpu, value):
+def LDY(cpu, source):
     """
     Load a value into the Y-register
     """
+    value = source()
     cpu.set_status('negative', value)
     cpu.set_status('zero', value)
     cpu.registers['y'].write(value)
     return None, 0
 
 
-def LSR(cpu, value):
+def LSR(cpu, source):
     """
     Shift right one bit
     """
+    value = source()
     cpu.set_status('carry', bool(value & 0x01))
     value >>= 1
     cpu.set_status('negative', value)
@@ -391,18 +407,18 @@ def LSR(cpu, value):
     return value, 0
 
 
-def NOP():
+def NOP(*args):
     """
     No operation
     """
     return None, 0
 
 
-def ORA(cpu, value):
+def ORA(cpu, source):
     """
     'OR' memory with Accumulator
     """
-    value |= cpu.registers['a'].read()
+    value = source() | cpu.registers['a'].read()
     cpu.set_status('negative', value)
     cpu.set_status('zero', value)
     cpu.registers['a'].write(value)
@@ -444,11 +460,11 @@ def PLP(cpu, *args):
     return None, 0
 
 
-def ROL(cpu, value):
+def ROL(cpu, source):
     """
     Rotate value one bit left
     """
-    value <<= 1
+    value = source() << 1
     if cpu.get_status('carry') is True:
         value |= 0x1
     cpu.set_status('carry', value > 0xff)
@@ -458,10 +474,11 @@ def ROL(cpu, value):
     return value, 0
 
 
-def ROR(cpu, value):
+def ROR(cpu, source):
     """
     Rotate value one bit right
     """
+    value = source()
     if cpu.get_status('carry') is True:
         value |= 0x1
     cpu.set_status('carry', bool(value & 0x01))
@@ -492,10 +509,11 @@ def RTS(cpu, *args):
     return None, 0
 
 
-def SBC(cpu, value):
+def SBC(cpu, source):
     """
     Subtract with carry
     """
+    value = source()
     carry = int(not cpu.get_status('carry'))
     a = cpu.registers['a'].read()
     diff = a - value - carry

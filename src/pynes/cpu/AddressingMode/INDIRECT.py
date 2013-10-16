@@ -1,3 +1,6 @@
+"""
+Indirect addressing for JMP instructions
+"""
 size = 2
 
 

@@ -1,10 +1,7 @@
-__author__ = 'misha'
-
+"""
+Dummy addressing mode for instructions that use implied addressing
+"""
 size = 0
-
-
-def read(cpu, *args):
-    return None, 0
 
 
 def print(param):
