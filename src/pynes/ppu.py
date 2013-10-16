@@ -4,8 +4,8 @@ PyNES - Picture Processing Unit (PPU) emulation
 
 import logging
 import threading
-import multiprocessing
 import numpy as np
+import time
 
 
 log = logging.getLogger("PyNES")
@@ -164,16 +164,13 @@ class PPU(threading.Thread):
         self.sprite_0_hit = False
         self.vblank = False  # Used to accurately reset cycle counter
         self._vblank = False  # Status flag, cleared when status is read
+        self.vblankLock = threading.Condition()
 
         self.spr_ram_addr = 0
         self.vram_addr = 0
         self.vertical_scroll_register = 0
         self.hotizontal_scroll_register = 0
         self.vert_scroll_reg = True
-
-        self.control1_lock = multiprocessing.Lock()
-        self.control2_lock = multiprocessing.Lock()
-        self.status_lock = multiprocessing.Lock()
 
         self.starting_scanline = 0
 
@@ -240,24 +237,25 @@ class PPU(threading.Thread):
 
     def generate_frame(self):
         log.debug("PPU: Generating new frame...")
+        time.sleep(1)
         # TODO
         pass
 
     def run(self):
         log.info("PPU loop starting...")
         while True:
-            self._console.CPU.PPUEvent.wait()
-            self._console.CPU.PPUEvent.clear()
-
+            self.vblankLock.acquire()
             if 27426 <= self._console.CPU.Cycles.value < 29692:
                 self.enter_vblank()
-                self._console.CPU.PPUEvent.wait()
 
             if self._console.CPU.Cycles.value >= 29692:
-                self._console.CPU.PPUEvent.clear()
                 self.exit_vblank()
                 self._console.CPU.Cycles.value = 0
 
-            self.starting_scanline = int(self._console.CPU.Cycles.value / 113.33)
-            self.generate_frame()
+            self.vblankLock.notifyAll()
+            self.vblankLock.release()
+
+            if not self.vblank:
+                self.starting_scanline = int(self._console.CPU.Cycles.value / 113.33)
+                self.generate_frame()
 

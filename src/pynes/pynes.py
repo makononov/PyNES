@@ -2,8 +2,8 @@
 """
 PyNES - A Nintendo Entertainment System emulator written in Python
 """
-import argparse
 
+import argparse
 import logging
 import pyglet
 from cartridge import Cartridge

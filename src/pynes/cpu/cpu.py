@@ -119,10 +119,10 @@ class CPU(threading.Thread):
 
         def __call__(self, mem):
             param = 0
-            for i in range(0, self._admode.size):
+            for i in range(self._admode.size):
                 param += mem[i] << (8 * i)
             value, adcycles = self._admode.read(self._cpu, param)
-            log.debug("{2:#06x}: {0} {1}(cycles: {3})".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read(), self._cpu.Cycles.value))
+            # log.debug("{2:#06x}: {0} {1}(cycles: {3})".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read(), self._cpu.Cycles.value))
             self._cpu.registers['pc'].increment(value=1 + self._admode.size)
             fn_value, fncycles = self._fn(self._cpu, value)
             if fn_value is not None:
@@ -348,6 +348,7 @@ class CPU(threading.Thread):
 
     def run(self):
         while True:
+            self._console.PPU.vblankLock.acquire()
             # Check IRQs
             if self.IRQ.value != b'\x00':
                 log.debug("IRQ triggered with code {0}.".format(self.IRQ.value))
@@ -374,7 +375,7 @@ class CPU(threading.Thread):
             self.Cycles.value += increment_cycles
             # Check for start of VBLANK
             if self.Cycles.value >= 27426 and not self._console.PPU.vblank:
-                self.PPUEvent.set()
+                self._console.PPU.vblankLock.wait()
             # End of VBLANK
             if self.Cycles.value >= 29692:
-                self.PPUEvent.set()
+                self._console.PPU.vblankLock.wait()
