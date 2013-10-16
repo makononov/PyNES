@@ -1,12 +1,13 @@
+"""
+PyNES - Central Processing Unit emulation
+"""
+
 import multiprocessing
-from cpu import instructions
-from cpu import AddressingMode
-
-__author__ = 'misha'
-
-import numpy as np
 import threading
 import logging
+import numpy as np
+from cpu import instructions
+from cpu import AddressingMode
 
 
 log = logging.getLogger("PyNES")
@@ -121,7 +122,7 @@ class CPU(threading.Thread):
             for i in range(0, self._admode.size):
                 param += mem[i] << (8 * i)
             value, adcycles = self._admode.read(self._cpu, param)
-            # log.debug("{2:#06x}: {0} {1}(cycles: {3})".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read(), self._cpu.Cycles.value))
+            log.debug("{2:#06x}: {0} {1}(cycles: {3})".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read(), self._cpu.Cycles.value))
             self._cpu.registers['pc'].increment(value=1 + self._admode.size)
             fn_value, fncycles = self._fn(self._cpu, value)
             if fn_value is not None:
@@ -146,7 +147,7 @@ class CPU(threading.Thread):
         }
 
         self._cart = console.Cart
-        self.CycleLock = multiprocessing.Lock()
+        self.PPUEvent = threading.Event()
         self.Cycles = multiprocessing.Value("I", 0)
         self.IRQ = multiprocessing.Value("c")
         self.IRQ.value = b'R'  # Set reset IRQ
@@ -170,7 +171,7 @@ class CPU(threading.Thread):
             0x1d: CPU.Instruction(self, instructions.ORA, AddressingMode.ABSOLUTE_X, 4),
             0x1e: CPU.Instruction(self, instructions.ASL, AddressingMode.ABSOLUTE_X, 7),
 
-            0x20: CPU.Instruction(self, instructions.JSR, AddressingMode.ABSOLUTE, 6),
+            0x20: CPU.Instruction(self, instructions.JSR, AddressingMode.IMMEDIATE2, 6),
             0x21: CPU.Instruction(self, instructions.AND, AddressingMode.INDIRECT_X, 6),
             0x24: CPU.Instruction(self, instructions.BIT, AddressingMode.ZEROPAGE, 3),
             0x25: CPU.Instruction(self, instructions.AND, AddressingMode.ZEROPAGE, 3),
@@ -197,7 +198,7 @@ class CPU(threading.Thread):
             0x48: CPU.Instruction(self, instructions.PHA, AddressingMode.NONE, 3),
             0x49: CPU.Instruction(self, instructions.EOR, AddressingMode.IMMEDIATE, 2),
             0x4a: CPU.Instruction(self, instructions.LSR, AddressingMode.ACCUMULATOR, 2),
-            0x4c: CPU.Instruction(self, instructions.JMP, AddressingMode.ABSOLUTE, 3),
+            0x4c: CPU.Instruction(self, instructions.JMP, AddressingMode.IMMEDIATE2, 3),
             0x4d: CPU.Instruction(self, instructions.EOR, AddressingMode.ABSOLUTE, 4),
             0x4e: CPU.Instruction(self, instructions.LSR, AddressingMode.ABSOLUTE, 6),
             0x50: CPU.Instruction(self, instructions.BVC, AddressingMode.RELATIVE, 2),
@@ -370,7 +371,10 @@ class CPU(threading.Thread):
             # Go directly to the cartridge prg_rom to read multiple bytes.
             pc -= 0x8000
             increment_cycles = self.execute(self._cart.prg_rom[pc:pc+3])
-            with self.CycleLock:
-                self.Cycles.value += increment_cycles
-                if self.Cycles.value >= 27426:
-                    self._console.PPU.VBLANK_LOCK.notify()
+            self.Cycles.value += increment_cycles
+            # Check for start of VBLANK
+            if self.Cycles.value >= 27426 and not self._console.PPU.vblank:
+                self.PPUEvent.set()
+            # End of VBLANK
+            if self.Cycles.value >= 29692:
+                self.PPUEvent.set()

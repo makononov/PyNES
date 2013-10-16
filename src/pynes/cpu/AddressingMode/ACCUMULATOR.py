@@ -3,7 +3,7 @@ __author__ = 'misha'
 size = 0
 
 
-def read(cpu):
+def read(cpu, *args):
     return cpu.registers['a'].read(), 0
 
 

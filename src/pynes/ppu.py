@@ -1,7 +1,12 @@
+"""
+PyNES - Picture Processing Unit (PPU) emulation
+"""
+
 import logging
 import threading
-import numpy as np
 import multiprocessing
+import numpy as np
+
 
 log = logging.getLogger("PyNES")
 
@@ -11,75 +16,71 @@ class PPU(threading.Thread):
         def __init__(self, console):
             self._console = console
             self._ram = [0] * 0xffff
-            self.lock = multiprocessing.Lock()
 
         def write(self, address, value):
-            with self.lock:
-                if address < 0 or address > 0xffff:
-                    raise Exception("Memory write out of bounds: {0x:#4x}".format(address))
+            if address < 0 or address > 0xffff:
+                raise Exception("Memory write out of bounds: {0x:#4x}".format(address))
 
-                # Pattern Tables
-                if address < 0x2000:
-                    self._ram[address] = np.uint8(value)
+            # Pattern Tables
+            if address < 0x2000:
+                self._ram[address] = np.uint8(value)
 
-                # Name tables are mirrored in 0x3000 - 0x3eff
-                elif 0x2000 <= address < 0x3f00:
-                    t_address = address - 0x2000
-                    t_address %= 0x1000
-                    self._ram[t_address + 0x2000] = np.uint8(value)
+            # Name tables are mirrored in 0x3000 - 0x3eff
+            elif 0x2000 <= address < 0x3f00:
+                t_address = address - 0x2000
+                t_address %= 0x1000
+                self._ram[t_address + 0x2000] = np.uint8(value)
 
-                # Palettes are mirrored in 0x3f20 - 0x3fff
-                elif 0x3f00 <= address < 0x4000:
-                    t_address = address - 0x3f00
-                    # Background color is mirrored every 4 bytes.
-                    if t_address % 4 == 0:
-                        t_address = 0
-                    t_address %= 0x20
-                    self._ram[t_address + 0x3f00] = np.uint8(value)
+            # Palettes are mirrored in 0x3f20 - 0x3fff
+            elif 0x3f00 <= address < 0x4000:
+                t_address = address - 0x3f00
+                # Background color is mirrored every 4 bytes.
+                if t_address % 4 == 0:
+                    t_address = 0
+                t_address %= 0x20
+                self._ram[t_address + 0x3f00] = np.uint8(value)
 
-                # Mirrors 0x0000 - 0x3fff
-                elif address >= 0x4000:
-                    self.write(address % 0x4000, value)
+            # Mirrors 0x0000 - 0x3fff
+            elif address >= 0x4000:
+                self.write(address % 0x4000, value)
 
-                else:
-                    raise Exception("Unhandled memory write to address {0:#4x}".format(address))
+            else:
+                raise Exception("Unhandled memory write to address {0:#4x}".format(address))
 
         def read(self, address):
-            with self.lock:
-                # log.debug("Memory read from address {0:#4x}".format(address))
-                if address < 0 or address > 0xffff:
-                    raise Exception("Memory read out of bounds: {0:#4x}".format(address))
+            # log.debug("Memory read from address {0:#4x}".format(address))
+            if address < 0 or address > 0xffff:
+                raise Exception("Memory read out of bounds: {0:#4x}".format(address))
 
-                # Pattern Tables
-                if address < 0x2000:
-                    return np.uint8(self._ram[address])
+            # Pattern Tables
+            if address < 0x2000:
+                return np.uint8(self._ram[address])
 
-                # Name Tables (mirrored in 0x3000 - 0x3eff)
-                elif 0x2000 <= address < 0x3f00:
-                    t_address = address - 0x2000
-                    t_address %= 0x1000
-                    return np.uint8(self._ram[t_address + 0x2000])
+            # Name Tables (mirrored in 0x3000 - 0x3eff)
+            elif 0x2000 <= address < 0x3f00:
+                t_address = address - 0x2000
+                t_address %= 0x1000
+                return np.uint8(self._ram[t_address + 0x2000])
 
-                # Palettes
-                elif 0x3f00 <= address < 0x4000:
-                    t_address = address - 0x3f00
-                    # Background color is mirrored every 4 bytes
-                    if t_address % 4 == 0:
-                        t_address = 0
-                    return np.uint8(self._ram[t_address + 0x3f00])
+            # Palettes
+            elif 0x3f00 <= address < 0x4000:
+                t_address = address - 0x3f00
+                # Background color is mirrored every 4 bytes
+                if t_address % 4 == 0:
+                    t_address = 0
+                return np.uint8(self._ram[t_address + 0x3f00])
 
-                elif address >= 0x4000:
-                    return self.read(address % 0x4000)
+            elif address >= 0x4000:
+                return self.read(address % 0x4000)
 
-                else:
-                    raise Exception("Unhandled memory read at {0:#4x}".format(address))
+            else:
+                raise Exception("Unhandled memory read at {0:#4x}".format(address))
 
     def __init__(self, console):
         log.debug('PPU: Initializing PPU...')
 
         self.memory = PPU.Memory(console)
         self._console = console
-        self.VBLANK_LOCK = threading.Condition()
         self._palette = [(0x75, 0x75, 0x75),
                          (0x27, 0x1b, 0x8f),
                          (0x00, 0x00, 0xab),
@@ -161,8 +162,8 @@ class PPU(threading.Thread):
         self.accept_vram_writes = True
         self.scanline_sprite_count = 0
         self.sprite_0_hit = False
-        self.vblank = False  # Status flag, cleared when status is read
-        self._vblank = False  # Used to accurately reset cycle counter
+        self.vblank = False  # Used to accurately reset cycle counter
+        self._vblank = False  # Status flag, cleared when status is read
 
         self.spr_ram_addr = 0
         self.vram_addr = 0
@@ -173,6 +174,8 @@ class PPU(threading.Thread):
         self.control1_lock = multiprocessing.Lock()
         self.control2_lock = multiprocessing.Lock()
         self.status_lock = multiprocessing.Lock()
+
+        self.starting_scanline = 0
 
         super(PPU, self).__init__()
 
@@ -217,10 +220,10 @@ class PPU(threading.Thread):
         value = int(self.accept_vram_writes) << 4
         value |= (int(self.scanline_sprite_count > 8) << 5)
         value |= (int(self.sprite_0_hit) << 6)
-        value |= (int(self.vblank) << 7)
+        value |= (int(self._vblank) << 7)
 
         # Clear VBLANK flag and both VRAM address registers.
-        self.vblank = False
+        self._vblank = False
         self.vram_addr_1 = 0
         self.vram_addr_2 = 0
 
@@ -235,16 +238,26 @@ class PPU(threading.Thread):
         self._vblank = False
         self.vblank = False
 
+    def generate_frame(self):
+        log.debug("PPU: Generating new frame...")
+        # TODO
+        pass
+
     def run(self):
         log.info("PPU loop starting...")
         while True:
-            # TODO: Check for non-VBLANK writes
-            # TODO: Generate frame
-            self.VBLANK_LOCK.wait()
-            with self._console.CPU.CycleLock:
-                if self._console.CPU.Cycles.value >= 27426 and not self._vblank:
-                    self.enter_vblank()
-                elif self._console.CPU.Cycles.value >= 29692:
-                    self.exit_vblank()
-                    self._console.CPU.Cycles.value = 0
+            self._console.CPU.PPUEvent.wait()
+            self._console.CPU.PPUEvent.clear()
+
+            if 27426 <= self._console.CPU.Cycles.value < 29692:
+                self.enter_vblank()
+                self._console.CPU.PPUEvent.wait()
+
+            if self._console.CPU.Cycles.value >= 29692:
+                self._console.CPU.PPUEvent.clear()
+                self.exit_vblank()
+                self._console.CPU.Cycles.value = 0
+
+            self.starting_scanline = int(self._console.CPU.Cycles.value / 113.33)
+            self.generate_frame()
 
