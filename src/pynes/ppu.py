@@ -164,7 +164,6 @@ class PPU(threading.Thread):
         self.sprite_0_hit = False
         self.vblank = False  # Used to accurately reset cycle counter
         self._vblank = False  # Status flag, cleared when status is read
-        self.vblankLock = threading.Condition()
 
         self.spr_ram_addr = 0
         self.vram_addr = 0
@@ -242,20 +241,9 @@ class PPU(threading.Thread):
         pass
 
     def run(self):
-        log.info("PPU loop starting...")
         while True:
-            self.vblankLock.acquire()
-            if 27426 <= self._console.CPU.Cycles.value < 29692:
-                self.enter_vblank()
-
-            if self._console.CPU.Cycles.value >= 29692:
-                self.exit_vblank()
-                self._console.CPU.Cycles.value = 0
-
-            self.vblankLock.notifyAll()
-            self.vblankLock.release()
-
-            if not self.vblank:
-                self.starting_scanline = int(self._console.CPU.Cycles.value / 113.33)
-                self.generate_frame()
+            self._console.CPU.EndOfCycle.wait()
+            self._console.CPU.EndOfCycle.clear()
+            self.starting_scanline = int(self._console.CPU.Cycles.value / 113.33)
+            self.generate_frame()
 
