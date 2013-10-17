@@ -11,4 +11,4 @@ def read(cpu, param):
 
 
 def print(param):
-    return "({0:#6x})".format(param)
+    return "({0:#06x})".format(param)

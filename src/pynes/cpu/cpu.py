@@ -28,6 +28,8 @@ class CPU(threading.Thread):
             if address < 0x2000:
                 base_address = address % 0x800
                 self._ram[base_address] = np.uint8(value)
+                if base_address == 0x0001:
+                    log.warning("WRITE TO 0x0001: {0}".format(value))
 
             elif 0x2000 <= address < 0x4000:
                  # PPU Registers
@@ -122,7 +124,7 @@ class CPU(threading.Thread):
             for i in range(self._admode.size):
                 param += mem[i] << (8 * i)
             source = lambda: self._admode.read(self._cpu, param)
-            # log.debug("{2:#06x}: {0} {1}(cycles: {3})".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read(), self._cpu.Cycles.value))
+            log.debug("{2:#06x}: {0} {1} (cycles: {3})".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read(), self._cpu.Cycles.value))
             self._cpu.registers['pc'].increment(value=1 + self._admode.size)
             fn_value, fncycles = self._fn(self._cpu, source)
             if fn_value is not None:

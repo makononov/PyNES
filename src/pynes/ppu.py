@@ -227,6 +227,11 @@ class PPU(threading.Thread):
 
     def enter_vblank(self):
         log.debug("**** VBLANK ****")
+
+        # If the NMI bit is set, generate an NMI IRQ
+        if self.NMI:
+            self._console.CPU.IRQ.value = b'N'
+
         self._vblank = True
         self.vblank = True
 
