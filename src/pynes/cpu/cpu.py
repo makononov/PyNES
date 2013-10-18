@@ -22,33 +22,40 @@ class CPU(threading.Thread):
         def write(self, address, value):
             # log.debug("Memory write to address {0:#4x}".format(address))
             if address < 0 or address > 0xffff:
-                raise Exception("Memory write out of bounds: {0x:#4x}".format(address))
+                raise Exception("Memory write out of bounds: {0x:#06x}".format(address))
 
             # RAM - Mirrored four times, so get the base address before writing.
             if address < 0x2000:
                 base_address = address % 0x800
                 self._ram[base_address] = np.uint8(value)
-                if base_address == 0x0001:
-                    log.warning("WRITE TO 0x0001: {0}".format(value))
 
             elif 0x2000 <= address < 0x4000:
                  # PPU Registers
-                address -= 0x2000
-                base = address % 8
+                base = (address - 0x2000) % 8
                 if base == 0:
                     self._console.PPU.update_control_1(value)
                 elif base == 1:
                     self._console.PPU.update_control_2(value)
+                elif base == 3:
+                    self._console.PPU.spr_ram_addr = value
+                elif base == 4:
+                    self._console.PPU.write_sprram(value)
                 else:
-                    log.debug("Unhandled I/O register read: {0:#4x}".format(address))
+                    log.debug("Unhandled I/O register write: {0:#06x}".format(address))
 
             elif 0x4000 <= address < 0x4014 or address == 0x4015:
                 # pAPU registers
                 log.debug("Unhandled write to pAPU registers")
 
             elif address == 0x4014:
-                log.debug("Unhandled DMS Sprite Transfer")
                 # DMA Sprite Transfer
+                srcaddr = value * 0x100
+                if 0x8000 <= srcaddr < 0x10000:
+                    self._console.PPU.dma_sprram(self._console.Cart.prg_rom[srcaddr:srcaddr + 0x100])
+                    self._console.CPU.Cycles += 512
+                else:
+                    log.critical("DMA Sprite Transfer from source other than PRGROM ({0:#06x})".format(srcaddr))
+                    raise Exception()
 
             elif address == 0x4016 or address == 0x4017:
                 log.debug("Unhandled write to controller registers")
@@ -62,12 +69,12 @@ class CPU(threading.Thread):
                 self._console.Cart.mem_write(address, value)
 
             else:
-                raise Exception("Unhandled memory write to address {0:#4x}".format(address))
+                raise Exception("Unhandled memory write to address {0:#06x}".format(address))
 
         def read(self, address):
             # log.debug("Memory read from address {0:#4x}".format(address))
             if address < 0 or address > 0xffff:
-                raise Exception("Memory read out of bounds: {0:#4x}".format(address))
+                raise Exception("Memory read out of bounds: {0:#06x}".format(address))
 
             if address < 0x2000:
                 # RAM
@@ -76,12 +83,13 @@ class CPU(threading.Thread):
 
             elif 0x2000 <= address < 0x4000:
                 # PPU Registers
-                address -= 0x2000
-                base = address % 8
+                base = (address - 0x2000) % 8
                 if base == 2:
                     return self._console.PPU.status_register()
+                elif base == 4:
+                    return self._console.PPU.read_sprram()
                 else:
-                    log.debug("Unhandled I/O register read: {0:#4x}".format(address))
+                    log.debug("Unhandled I/O register read: {0:#06x} (pc: {1:#06x})".format(address, self._console.CPU.registers['pc'].read()))
 
             elif 0x6000 <= address < 0x8000:
                 log.debug("Unhandled read from Save RAM")
@@ -90,7 +98,7 @@ class CPU(threading.Thread):
                 return self._console.Cart.prg_rom[address - 0x8000]
 
             else:
-                raise Exception("Unhandled memory read at {0:#4x}".format(address))
+                raise Exception("Unhandled memory read at {0:#06x}".format(address))
 
     class Register:
         def __init__(self, dtype):
@@ -124,7 +132,7 @@ class CPU(threading.Thread):
             for i in range(self._admode.size):
                 param += mem[i] << (8 * i)
             source = lambda: self._admode.read(self._cpu, param)
-            log.debug("{2:#06x}: {0} {1} (cycles: {3})".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read(), self._cpu.Cycles.value))
+            # log.debug("{2:#06x}: {0} {1} (cycles: {3})".format(self._fn.__name__, self._admode.print(param), self._cpu.registers['pc'].read(), self._cpu.Cycles.value))
             self._cpu.registers['pc'].increment(value=1 + self._admode.size)
             fn_value, fncycles = self._fn(self._cpu, source)
             if fn_value is not None:

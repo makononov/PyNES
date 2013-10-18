@@ -3,6 +3,7 @@ PyNES - Picture Processing Unit (PPU) emulation
 """
 
 import logging
+import multiprocessing
 import threading
 import numpy as np
 import time
@@ -165,7 +166,7 @@ class PPU(threading.Thread):
         self.vblank = False  # Used to accurately reset cycle counter
         self._vblank = False  # Status flag, cleared when status is read
 
-        self.spr_ram_addr = 0
+        self.spr_ram_addr = multiprocessing.Value('B', 0)
         self.vram_addr = 0
         self.vertical_scroll_register = 0
         self.hotizontal_scroll_register = 0
@@ -238,6 +239,20 @@ class PPU(threading.Thread):
     def exit_vblank(self):
         self._vblank = False
         self.vblank = False
+
+    def write_sprram(self, value):
+        self._sprite_ram[self.spr_ram_addr] = value
+        self.spr_ram_addr += 1
+
+    def read_sprram(self):
+        return self._sprite_ram[self.spr_ram_addr]
+
+    def dma_sprram(self, vals):
+        if len(vals) != 256:
+            log.critical("Invalid DMA write of {0} bytes.".format(len(vals)))
+            raise Exception()
+
+        self._sprite_ram = vals
 
     def generate_frame(self):
         log.debug("PPU: Generating new frame...")
