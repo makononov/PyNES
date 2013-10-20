@@ -40,6 +40,8 @@ class CPU(threading.Thread):
                     self._console.PPU.spr_ram_addr = value
                 elif base == 4:
                     self._console.PPU.write_sprram(value)
+                elif base in (5, 6, 7):
+                    self._console.PPU.reg_write(base + 0x2000, value)
                 else:
                     log.debug("Unhandled I/O register write: {0:#06x}".format(address))
 

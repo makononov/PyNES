@@ -19,6 +19,7 @@ class PPU(threading.Thread):
             self._ram = [0] * 0xffff
 
         def write(self, address, value):
+            # log.debug("PPU Memory Write to address {0:#06x}".format(address))
             if address < 0 or address > 0xffff:
                 raise Exception("Memory write out of bounds: {0x:#4x}".format(address))
 
@@ -148,7 +149,6 @@ class PPU(threading.Thread):
                          (0x00, 0x00, 0x00)]
 
         self._sprite_ram = [0] * 0x100
-        self.name_table_address = 0x2000
         self.address_increment = 1
         self.sprite_pattern_table = 0x0000
         self.background_pattern_table = 0x0000
@@ -168,9 +168,11 @@ class PPU(threading.Thread):
 
         self.spr_ram_addr = multiprocessing.Value('B', 0)
         self.vram_addr = 0
-        self.vertical_scroll_register = 0
-        self.hotizontal_scroll_register = 0
+        self.temp_vram_addr = 0
+        self.fine_y = 0
+        self.fine_x = 0
         self.vert_scroll_reg = True
+        self.reg_write_toggle = True
 
         self.starting_scanline = 0
 
@@ -178,7 +180,8 @@ class PPU(threading.Thread):
 
     def update_control_1(self, value):
         log.debug('PPU: Updating control register 1 to {0:b}'.format(value))
-        self.name_table_address = 0x2000 + (0x400 * (value & 0b11)) # bits 0-1
+        self.temp_vram_addr &= 0xf3ff
+        self.temp_vram_addr |= (value & 0x3) << 10
 
         if value & (1 << 2):
             self.address_increment = 32
@@ -219,10 +222,9 @@ class PPU(threading.Thread):
         value |= (int(self.sprite_0_hit) << 6)
         value |= (int(self._vblank) << 7)
 
-        # Clear VBLANK flag and both VRAM address registers.
+        # Clear VBLANK flag and VRAM write toggle.
         self._vblank = False
-        self.vram_addr_1 = 0
-        self.vram_addr_2 = 0
+        self.reg_write_toggle = True
 
         return value
 
@@ -253,6 +255,33 @@ class PPU(threading.Thread):
             raise Exception()
 
         self._sprite_ram = vals
+
+    def reg_write(self, reg, value):
+        if reg == 0x2005:
+            if self.reg_write_toggle:
+                self.temp_vram_addr &= 0xffe0
+                self.temp_vram_addr |= (value >> 3)
+                self.fine_x = (value & 0x7)
+                self.reg_write_toggle = False
+            else:
+                self.temp_vram_addr &= 0x8c1f
+                self.temp_vram_addr |= (value >> 3) << 5
+                self.temp_vram_addr |= (value & 0x7) << 13
+                self.reg_write_toggle = True
+
+        elif reg == 0x2006:
+            if self.reg_write_toggle:
+                self.temp_vram_addr = (value & 0x3f) << 8
+                self.reg_write_toggle = False
+            else:
+                self.temp_vram_addr |= (value & 0xff)
+                self.vram_addr = self.temp_vram_addr
+                self.reg_write_toggle = True
+
+        elif reg == 0x2007:
+            self.memory.write(self.vram_addr, value)
+            self.vram_addr += self.address_increment
+
 
     def generate_frame(self):
         log.debug("PPU: Generating new frame...")
