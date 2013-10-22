@@ -19,11 +19,15 @@ __email__ = "misha@mishakononov.com"
 __status__ = "Development"
 
 
-window = pyglet.window.Window(visible=False)
+window = None
 console = None
+log = None
 
 
 def init():
+    global window
+    global console
+    global log
     FORMAT = "[$BOLD%(name)s$RESET][%(levelname)-8s]  $COLOR%(message)s$RESET ($BOLD%(filename)s$RESET:%(lineno)d)"
     shandler = logging.StreamHandler()
     shandler.setFormatter(ColorFormatter(FORMAT))
@@ -35,18 +39,20 @@ def init():
     parser.add_argument('romfile', metavar="filename", type=str, help="The ROM file to load")
     args = parser.parse_args()
 
-    window.set_size(512, 448)
-
     cartridge = Cartridge(args.romfile)
     console = Console(cartridge)
     console.boot()
 
+    window = pyglet.window.Window(visible=False)
+    window.set_size(512, 448)
+    window.on_draw = on_draw
     window.set_visible(True)
 
 
-@window.event
 def on_draw():
+    log.debug("APP: ON_DRAW")
     window.clear()
+    console.PPU.frame.draw()
 
 if __name__ == "__main__":
     init()

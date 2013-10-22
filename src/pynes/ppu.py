@@ -7,6 +7,7 @@ import multiprocessing
 import threading
 import numpy as np
 import time
+import pyglet
 
 
 log = logging.getLogger("PyNES")
@@ -175,6 +176,8 @@ class PPU(threading.Thread):
         self.reg_write_toggle = True
 
         self.starting_scanline = 0
+        self.sprites_to_draw = []
+        self.frame = pyglet.graphics.Batch()
 
         super(PPU, self).__init__()
 
@@ -285,9 +288,15 @@ class PPU(threading.Thread):
 
     def generate_frame(self):
         log.debug("PPU: Generating new frame...")
-        time.sleep(1)
-        # TODO
-        pass
+        self.sprites_to_draw = []
+        self.frame = pyglet.graphics.Batch()
+        #background_color = list(self._palette[self.memory._ram[0x3f00]])
+        background_color = [255, 255, 255]
+        background_palette = [self._palette[x] for x in self.memory._ram[0x3f01:0x3f10]]
+        sprite_palette = [self._palette[x] for x in self.memory._ram[0x3f11:0x3f20]]
+
+        background = pyglet.image.ImageData(512, 448, "RGB", bytes(background_color * 512 * 448))
+        self.sprites_to_draw.append(pyglet.sprite.Sprite(background, batch=self.frame))
 
     def run(self):
         while True:
